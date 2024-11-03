@@ -1,0 +1,2 @@
+﻿  main.c
+C:\Users\Smosman\Desktop\c projekat\c project\c project\main.c(112,9): warning C4133: 'function': incompatible types - from 'int (__cdecl *)(void *,MHD_Connection *,const char *,const char *,const char *,const char *,size_t *,void **)' to 'MHD_AccessHandlerCallback'
