@@ -4,5 +4,6 @@
 #include "model.h"
 
 int adduser(User* user);
+int repo();
 
 #endif

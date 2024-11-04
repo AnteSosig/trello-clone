@@ -21,9 +21,6 @@ Repository* New(FILE* logger) {
         return NULL;
     }
 
-    // Initialize MongoDB C driver
-    mongoc_init();
-
     // Create MongoDB client
     mongoc_client_t* client = mongoc_client_new(dburi);
     if (!client) {
@@ -63,10 +60,11 @@ void Cleanup(Repository* repo) {
         mongoc_client_destroy(repo->client);
         free(repo);
     }
-    mongoc_cleanup();
 }
 
 int adduser(User *user) {
+
+    printf("KRKAAAAAAAAAAAAN.\n");
 
     FILE* log = fopen("log.txt", "w");
     if (log == NULL) {
@@ -77,6 +75,7 @@ int adduser(User *user) {
     const char *db_name = "users";
     const char *collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("SMIRDIIIIIIIIM.\n");
 
     bson_t* doc = bson_new();
     BSON_APPEND_UTF8(doc, "username", user->username);
@@ -99,9 +98,19 @@ int adduser(User *user) {
 
     bson_destroy(doc);
     Cleanup(repo);
-    if (log) {
+    if (log != NULL) {
         fclose(log);
     }
+    return 0;
+
+}
+
+int repo() {
+
+    mongoc_init();
+    getchar();
+    mongoc_cleanup();
+
     return 0;
 
 }

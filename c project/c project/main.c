@@ -21,11 +21,15 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
     // Handle "/newuser" POST request
     if (strcmp(url, "/newuser") == 0 && strcmp(method, "POST") == 0) {
 
+        printf("ZLAJAAAAA.\n");
+
         if (*con_cls == NULL) {
             struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
             *con_cls = (void*)conn_info;
             return MHD_YES;
         }
+
+        printf("KAKIMIIIICS.\n");
 
         struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
         // If there's upload data, accumulate it
@@ -36,6 +40,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             conn_info->json_size += *upload_data_size;
             conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
             *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
             return MHD_YES;
         }
         else {
@@ -49,6 +54,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
                 MHD_destroy_response(response);
                 cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
                 return MHD_YES;
             }
 
@@ -61,6 +67,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
                     int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
                     MHD_destroy_response(response);
+                    printf("KKKKKKKKKKKKK.\n");
                 }
                 else {
                     const char* error_response = "User not added";
@@ -85,6 +92,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             free(conn_info->json_data);
             free(conn_info);
             *con_cls = NULL;
+            printf("LLLLLLLLLLLLL.\n");
             return MHD_YES;
         }
     }
@@ -116,6 +124,7 @@ int main() {
     }
 
     printf("Server running on port %d\n", port);
+    repo();
 
     // Run indefinitely (could also add logic to handle graceful shutdowns)
     getchar();
