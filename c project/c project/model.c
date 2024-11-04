@@ -4,17 +4,21 @@
 
 int parse_user_from_json(const cJSON* json, User* user) {
     // Check if each field exists and is a string
+    cJSON* username = cJSON_GetObjectItem(json, "username");
     cJSON* first_name = cJSON_GetObjectItem(json, "first_name");
     cJSON* last_name = cJSON_GetObjectItem(json, "last_name");
     cJSON* email = cJSON_GetObjectItem(json, "email");
     cJSON* password = cJSON_GetObjectItem(json, "password");
 
-    if (!cJSON_IsString(first_name) || !cJSON_IsString(last_name) ||
+    if (!cJSON_IsString(username) || !cJSON_IsString(first_name) || !cJSON_IsString(last_name) ||
         !cJSON_IsString(email) || !cJSON_IsString(password)) {
         return 1;  // Validation failed
     }
 
     // Copy the values into the User struct, ensuring they fit the defined size
+    strncpy(user->username, username->valuestring, sizeof(user->username) - 1);
+    user->username[sizeof(user->username) - 1] = '\0';
+
     strncpy(user->first_name, first_name->valuestring, sizeof(user->first_name) - 1);
     user->first_name[sizeof(user->first_name) - 1] = '\0';
 

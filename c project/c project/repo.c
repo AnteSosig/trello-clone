@@ -79,6 +79,7 @@ int adduser(User *user) {
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
 
     bson_t* doc = bson_new();
+    BSON_APPEND_UTF8(doc, "username", user->username);
     BSON_APPEND_UTF8(doc, "first_name", user->first_name);
     BSON_APPEND_UTF8(doc, "last_name", user->last_name);
     BSON_APPEND_UTF8(doc, "email", user->email);

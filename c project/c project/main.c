@@ -18,17 +18,16 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
     const char* url, const char* method, const char* version,
     const char* upload_data, size_t* upload_data_size, void** con_cls) {
 
-    // Initialize per-connection data on the first call
-    if (*con_cls == NULL) {
-        struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
-        *con_cls = (void*)conn_info;
-        return MHD_YES;
-    }
-
-    struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
-
     // Handle "/newuser" POST request
     if (strcmp(url, "/newuser") == 0 && strcmp(method, "POST") == 0) {
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
         // If there's upload data, accumulate it
         if (*upload_data_size > 0) {
             // Reallocate memory to store incoming data
@@ -97,7 +96,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
     MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
     int ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
     MHD_destroy_response(response);
-    return MHD_YES;
+    return ret;
 }
 
 int main() {
