@@ -1,4 +1,5 @@
 #include <mongoc/mongoc.h>
+#include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "model.h"
@@ -117,10 +118,65 @@ int adduser(User *user) {
         printf("Document inserted successfully.\n");
     }
 
-
     bson_destroy(doc);
     Cleanup(repo);
-    if (log != NULL) {
+
+    CURL* curl;
+    CURLcode res;
+
+    curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, "smtp://smtp.gmail.com:587");
+        curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
+        //hardcoded for now
+        curl_easy_setopt(curl, CURLOPT_USERNAME, "nikola.birclin@gmail.com");
+        //hardcoded for now :(
+        curl_easy_setopt(curl, CURLOPT_PASSWORD, "rjxx axrp qkye vsee");
+        //hardcoded for now
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, "nikola.birclin@gmail.com");
+
+        printf("nagy a pusztulas.\n");
+
+        struct curl_slist* recipients = NULL;
+        recipients = curl_slist_append(recipients, user->email);
+        curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
+
+        FILE* payload_file = fopen("email_payload.txt", "w");
+        if (payload_file) {
+            fprintf(payload_file, "To: %s\r\n"
+                "From: trello clone\r\n"
+                "Subject: Test Email\r\n"
+                "\r\n"
+                "Egy asszonynak kilenc lanya nem gyozi szamlalni.\r\n", user->email);
+            fclose(payload_file);
+        }
+        else {
+            fprintf(stderr, "Failed to open payload file for writing\n");
+            return 2;
+        }
+        payload_file = fopen("email_payload.txt", "r");
+        if (!payload_file) {
+            fprintf(stderr, "Failed to open payload file for reading\n");
+            return 1;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, NULL);
+        curl_easy_setopt(curl, CURLOPT_READDATA, payload_file);
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+
+        printf("csarda mellet akasztofa.\n");
+
+        res = curl_easy_perform(curl);
+        printf("bazmeg.\n");
+        if (res != CURLE_OK) {
+            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+        }
+
+        curl_slist_free_all(recipients);
+        curl_easy_cleanup(curl);
+    }
+
+    if (log) {
         fclose(log);
     }
     return 0;
