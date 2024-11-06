@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit New Project</title>
+</head>
+<body>
+    <h2>Submit a New Project</h2>
+    <form id="submitForm" method="POST" action="http://localhost:8081/newproject">
+        <label for="moderator">Moderator:</label><br>
+        <input type="text" id="moderator" name="moderator" required><br><br>
+
+        <label for="project">Project Name:</label><br>
+        <input type="text" id="project" name="project" required><br><br>
+
+        <label for="members">Members:</label><br>
+        <input type="text" id="members" name="members" required><br><br>
+
+        <input type="submit" value="Submit">
+    </form>
+
+    <script>
+        document.getElementById('submitForm').onsubmit = async function (event) {
+            event.preventDefault(); 
+            const formData = {
+                moderator: document.getElementById('moderator').value,
+                project: document.getElementById('project').value,
+                members: document.getElementById('members').value
+            };
+
+            try {
+                const response = await fetch('http://localhost:8081/newproject', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    alert('Project submitted successfully!');
+                    document.getElementById('submitForm').reset();
+                } else {
+                    alert('Failed to submit the project.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while submitting the project.');
+            }
+        };
+    </script>
+</body>
+</html>

@@ -3,7 +3,10 @@
 
 #include "model.h"
 
-int adduser(User* user);
+// Function to add a project to the repository
+int addproject(Project* project);
+
+// Function to initialize the repository
 int repo();
 
 #endif

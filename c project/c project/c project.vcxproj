@@ -135,6 +135,12 @@
     <ClCompile Include="repo.h" />
     <ClCompile Include="model.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="submit.html" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

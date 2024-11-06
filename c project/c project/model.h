@@ -4,14 +4,11 @@
 #include <cjson/cJSON.h>
 
 typedef struct {
-    char username[20];
-    char first_name[20];
-    char last_name[20];
-    char email[50];
-    char password[50];
-    int active;
-} User;
+    char moderator[20];
+    char project[20];
+    char members[50][20];  // Array to store 50 member names (max 20 chars per member)
+} Project;
 
-int parse_user_from_json(const cJSON* json, User* user);
+int parse_project_from_json(const cJSON* json, Project* project);
 
 #endif

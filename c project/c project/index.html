@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <h1>Project List</h1>
+    <table id="projectTable">
+        <thead>
+            <tr>
+                <th>Project ID</th>
+                <th>Name</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- The rows of the table will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+
+    <script>
+        // Fetch and display the project data when the page loads
+        function fetchProjects() {
+            fetch('http://localhost:8080/projects')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();  // Parse the response as JSON
+                })
+                .then(data => {
+                    console.log('Parsed data:', data);  // Log parsed data for inspection
+
+                    const tableBody = document.getElementById('projectTable').querySelector('tbody');
+                    tableBody.innerHTML = ''; // Clear any existing rows
+
+                    if (Array.isArray(data)) {
+                        data.forEach(project => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                    <td>${project._id ? project._id.$oid : 'N/A'}</td>
+                                    <td>${project.moderator || 'N/A'}</td>
+                                    <td>${project.project || 'N/A'}</td>
+                                    <td>${project.members || 'N/A'}</td>
+                                `;
+                            tableBody.appendChild(row);
+                        });
+                    } else {
+                        console.error('Data is not an array or is malformed');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+        }
+
+        // Call the function to fetch projects when the page loads
+        window.onload = fetchProjects;
+    </script>
+
+</body>
+</html>

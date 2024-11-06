@@ -31,4 +31,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="submit.html">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>

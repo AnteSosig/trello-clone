@@ -2,10 +2,14 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\Smosman\Desktop\c projekat\c project\x64\Debug\c project.exe</FullPath>
+      <FullPath>C:\Users\krist\OneDrive\Desktop\NOVI\trello-clone\c project\x64\Debug\c project.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
-  <ContentFiles />
+  <ContentFiles>
+    <ContentFile>
+      <FullPath>C:\Users\krist\OneDrive\Desktop\NOVI\trello-clone\c project\c project\index.html</FullPath>
+    </ContentFile>
+  </ContentFiles>
   <SatelliteDlls />
   <NonRecipeFileRefs />
 </Project>
