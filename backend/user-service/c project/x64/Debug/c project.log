@@ -1,0 +1,5 @@
+﻿x64\Debug\repo.obj : warning LNK4042: object specified more than once; extras ignored
+x64\Debug\model.obj : warning LNK4042: object specified more than once; extras ignored
+  c project.vcxproj -> C:\Users\Smosman\Documents\GitHub\trello-clone\backend\user-service\x64\Debug\c project.exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.
