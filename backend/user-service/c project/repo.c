@@ -93,7 +93,7 @@ int adduser(User *user) {
         bson_destroy(query);
         mongoc_cursor_destroy(cursor);
         Cleanup(repo);
-        if (log != NULL) {
+        if (log) {
             fclose(log);
         }
         return 1;
@@ -119,7 +119,61 @@ int adduser(User *user) {
     }
 
     bson_destroy(doc);
+
+    FILE* payload_file = fopen("email_payload.txt", "w");
+    if (payload_file) {
+        fprintf(payload_file, "To: %s\r\n"
+            "From: trello clone\r\n"
+            "Subject: Test Email\r\n"
+            "\r\n"
+            "Egy asszonynak kilenc lanya nem gyozi szamlalni.\r\n", user->email);
+        fclose(payload_file);
+        fprintf(repo->logger, "Written to the payload file.\n");
+    }
+    else {
+        fprintf(repo->logger, "Failed to open payload file for writing.\n");
+        printf("Failed to open payload file for writing.\n");
+
+        return 2;
+    }
+
+    payload_file = fopen("email_payload.txt", "r");
+    if (!email(user, payload_file)) {
+        printf("ubicu se bukvalno.\n");
+        fprintf(repo->logger, "Email sent successfully.\n");
+        printf("Email sent successfully.\n");
+    }
+    else {
+        fprintf(repo->logger, "Failed to send email.\n");
+        printf("Failed to send email.\n");
+
+        return 3;
+    }
+
     Cleanup(repo);
+    if (log) {
+        fclose(log);
+    }
+    return 0;
+
+}
+
+int repo() {
+
+    mongoc_init();
+    getchar();
+    mongoc_cleanup();
+
+    return 0;
+
+}
+
+int email(User *user, FILE* payload_file) {
+
+    if (!payload_file) {
+        fprintf(stderr, "Failed to open payload file for reading\n");
+        return 3;
+    }
 
     CURL* curl;
     CURLcode res;
@@ -141,25 +195,6 @@ int adduser(User *user) {
         recipients = curl_slist_append(recipients, user->email);
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
 
-        FILE* payload_file = fopen("email_payload.txt", "w");
-        if (payload_file) {
-            fprintf(payload_file, "To: %s\r\n"
-                "From: trello clone\r\n"
-                "Subject: Test Email\r\n"
-                "\r\n"
-                "Egy asszonynak kilenc lanya nem gyozi szamlalni.\r\n", user->email);
-            fclose(payload_file);
-        }
-        else {
-            fprintf(stderr, "Failed to open payload file for writing\n");
-            return 2;
-        }
-        payload_file = fopen("email_payload.txt", "r");
-        if (!payload_file) {
-            fprintf(stderr, "Failed to open payload file for reading\n");
-            return 1;
-        }
-
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, NULL);
         curl_easy_setopt(curl, CURLOPT_READDATA, payload_file);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
@@ -170,25 +205,25 @@ int adduser(User *user) {
         printf("bazmeg.\n");
         if (res != CURLE_OK) {
             fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+
+            curl_slist_free_all(recipients);
+            curl_easy_cleanup(curl);
+            fclose(payload_file);
+
+            return 1;
         }
+
+        printf("curl ok?.\n");
 
         curl_slist_free_all(recipients);
         curl_easy_cleanup(curl);
+        fclose(payload_file);
+
+        printf("curl ok????????????.\n");
+
+        return 0;
     }
+    fclose(payload_file);
 
-    if (log) {
-        fclose(log);
-    }
-    return 0;
-
-}
-
-int repo() {
-
-    mongoc_init();
-    getchar();
-    mongoc_cleanup();
-
-    return 0;
-
+    return 2;
 }

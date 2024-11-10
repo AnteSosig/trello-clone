@@ -1,1 +1,3 @@
-Error: Duplicate username or email found.
+Document inserted successfully.
+Written to the payload file.
+Email sent successfully.
