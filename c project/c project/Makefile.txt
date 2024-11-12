@@ -1,0 +1,20 @@
+CC = gcc
+CFLAGS = -I/usr/include/libmongoc-1.0 -I/usr/include/microhttpd -I/usr/include/cjson -Wall
+LIBS = -lmongoc-1.0 -lbson-1.0 -lmicrohttpd -lcjson
+
+all: server
+
+server: main.o repo.o model.o
+	$(CC) -o server main.o repo.o model.o $(LIBS)
+
+main.o: main.c model.h repo.h
+	$(CC) $(CFLAGS) -c main.c
+
+repo.o: repo.c repo.h model.h
+	$(CC) $(CFLAGS) -c repo.c
+
+model.o: model.c model.h
+	$(CC) $(CFLAGS) -c model.c
+
+clean:
+	rm -f *.o server
