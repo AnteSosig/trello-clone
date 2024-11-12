@@ -17,11 +17,13 @@ struct ConnectionInfo {
 int answer_to_connection(void* cls, struct MHD_Connection* connection,
     const char* url, const char* method, const char* version,
     const char* upload_data, size_t* upload_data_size, void** con_cls) {
+
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type");
+        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Accept");
+        MHD_add_response_header(response, "Access-Control-Max-Age", "86400");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return ret;
@@ -29,11 +31,9 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
     // Handle "/newproject" POST request
     if (strcmp(url, "/newproject") == 0 && strcmp(method, "POST") == 0) {
-
         printf("Handling POST request for /newproject\n");
 
         if (*con_cls == NULL) {
-            // Allocate memory for incoming data storage
             struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
             *con_cls = (void*)conn_info;
             return MHD_YES;
@@ -41,18 +41,15 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
         struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
 
-        // If there's upload data, accumulate it
         if (*upload_data_size > 0) {
-            // Reallocate memory to store incoming data
             conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
             memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
             conn_info->json_size += *upload_data_size;
-            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
-            *upload_data_size = 0;  // Signal that we've processed this data
+            conn_info->json_data[conn_info->json_size] = '\0';
+            *upload_data_size = 0;
             return MHD_YES;
         }
         else {
-            // All data received, process the JSON
             cJSON* json = cJSON_Parse(conn_info->json_data);
             if (json == NULL) {
                 const char* error_response = "Invalid JSON format";
@@ -65,17 +62,13 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 return MHD_YES;
             }
 
-            // Assuming the parsed data is for a Project struct
             Project project;
             if (parse_project_from_json(json, &project) == 0) {
-                // Call your addproject function (adjust it as necessary)
                 if (addproject(&project) == 0) {
-                    // Create a JSON response
                     cJSON* response_json = cJSON_CreateObject();
                     cJSON_AddStringToObject(response_json, "moderator", project.moderator);
                     cJSON_AddStringToObject(response_json, "project", project.project);
 
-                    // Add members array
                     cJSON* members_array = cJSON_CreateArray();
                     for (int i = 0; project.members[i][0] != '\0' && i < 50; i++) {
                         cJSON_AddItemToArray(members_array, cJSON_CreateString(project.members[i]));
@@ -108,7 +101,6 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 MHD_destroy_response(response);
             }
 
-            // Clean up
             cJSON_Delete(json);
             free(conn_info->json_data);
             free(conn_info);
@@ -116,11 +108,11 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             return MHD_YES;
         }
     }
-    ///get handler
+
+    // Handle GET request for projects
     if (strcmp(url, "/projects") == 0 && strcmp(method, "GET") == 0) {
         printf("Handling GET request for /projects\n");
 
-        // Get projects from MongoDB
         char* response_data = get_all_projects();
         if (response_data == NULL) {
             const char* error_response = "Error fetching projects from database";
@@ -136,33 +128,178 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             return ret;
         }
 
-        // Log the raw response for debugging
         printf("Raw response data: %s\n", response_data);
         printf("Response length: %zu\n", strlen(response_data));
 
-        // Create response
         struct MHD_Response* response = MHD_create_response_from_buffer(
             strlen(response_data),
             (void*)response_data,
-            MHD_RESPMEM_MUST_FREE  // Changed to MUST_FREE since we allocated the string
+            MHD_RESPMEM_MUST_FREE
         );
 
-        // Set headers
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
         MHD_add_response_header(response, "Content-Type", "application/json");
 
-        // Queue response
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return ret;
     }
 
+    // In the PATCH handler
+    if (strncmp(url, "/updateproject/", 14) == 0 && strcmp(method, "PATCH") == 0) {
+        printf("Handling PATCH request for project update\n");
+        printf("URL: %s\n", url);
+
+        // Skip the "/updateproject/" prefix and any leading slash
+        const char* project_id = url + 14;
+        while (*project_id == '/') {
+            project_id++;
+        }
+
+        printf("Project ID after cleanup: %s\n", project_id);
+
+        if (strlen(project_id) != 24) {
+            printf("Invalid project ID length: %zu\n", strlen(project_id));
+            const char* error_response = "Invalid project ID length";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            if (conn_info == NULL) {
+                printf("Failed to allocate connection info\n");
+                return MHD_NO;
+            }
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+
+        if (*upload_data_size > 0) {
+            printf("Receiving data chunk of size: %zu\n", *upload_data_size);
+            conn_info->json_data = realloc(conn_info->json_data,
+                conn_info->json_size + *upload_data_size + 1);
+            if (conn_info->json_data == NULL) {
+                printf("Failed to allocate memory for JSON data\n");
+                return MHD_NO;
+            }
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';
+            *upload_data_size = 0;
+            return MHD_YES;
+        }
+
+        if (conn_info->json_data == NULL) {
+            printf("No JSON data received\n");
+            const char* error_response = "No data received";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            free(conn_info->json_data);
+            free(conn_info);
+            *con_cls = NULL;
+            return ret;
+        }
+
+        printf("Received JSON data: %s\n", conn_info->json_data);
 
 
+        if (*upload_data_size > 0) {
+            conn_info->json_data = realloc(conn_info->json_data,
+                conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';
+            *upload_data_size = 0;
+            return MHD_YES;
+        }
 
+        cJSON* json = cJSON_Parse(conn_info->json_data);
+        if (json == NULL) {
+            const char* error_response = "Invalid JSON format";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
 
+        cJSON* members = cJSON_GetObjectItem(json, "members");
+        if (!members || !cJSON_IsArray(members)) {
+            const char* error_response = "Invalid members array";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        }
 
-    // Handle other routes or return 404
+        int member_count = cJSON_GetArraySize(members);
+        const char** member_strings = malloc(member_count * sizeof(char*));
+        for (int i = 0; i < member_count; i++) {
+            cJSON* member = cJSON_GetArrayItem(members, i);
+            member_strings[i] = member->valuestring;
+        }
+
+        int update_result = update_project_members(project_id, member_strings, member_count);
+        free(member_strings);
+        cJSON_Delete(json);
+
+        if (update_result == 0) {
+            const char* success_response = "{\"status\":\"success\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(success_response),
+                (void*)success_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+        else {
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Failed to update project\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+    }
+
+    // Handle 404 for unmatched routes
     const char* not_found = "404 - Not Found";
     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
         (void*)not_found, MHD_RESPMEM_PERSISTENT);
@@ -175,11 +312,9 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 int main() {
     struct MHD_Daemon* daemon;
 
-    // Set the PORT from environment variable, fallback to default PORT 8080
     char* port_env = getenv("PORT");
     int port = port_env ? atoi(port_env) : PORT;
 
-    // Start the HTTP server
     daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL,
         &answer_to_connection, NULL, MHD_OPTION_END);
 
@@ -191,7 +326,6 @@ int main() {
     printf("Server running on port %d\n", port);
     repo();
 
-    // Run indefinitely (could also add logic to handle graceful shutdowns)
     getchar();
 
     MHD_stop_daemon(daemon);

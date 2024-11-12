@@ -3,10 +3,10 @@
 
 #include "model.h"
 
-// Function to add a project to the repository
 int addproject(Project* project);
-
-// Function to initialize the repository
 int repo();
 char* get_all_projects(void);
+// Add this new function declaration
+int update_project_members(const char* project_id, const char** members, int member_count);
+
 #endif

@@ -186,7 +186,72 @@ char* get_all_projects() {
 
     return result;
 }
+int update_project_members(const char* project_id, const char** members, int member_count) {
+    printf("Updating project members in MongoDB...\n");
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1;
+    }
 
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1;
+    }
+
+    const char* db_name = "trello";
+    const char* collection_name = "projects";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // Create query to find the project by ID
+    bson_t* query = bson_new();
+    bson_oid_t oid;
+    bson_error_t error;
+
+    // Try to convert the string ID to ObjectId
+    bson_oid_init_from_string(&oid, project_id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    // Create update document
+    bson_t* update = bson_new();
+    bson_t set;
+    bson_t members_array;
+
+    BSON_APPEND_DOCUMENT_BEGIN(update, "$set", &set);
+    BSON_APPEND_ARRAY_BEGIN(&set, "members", &members_array);
+
+    for (int i = 0; i < member_count; i++) {
+        char str_idx[16];
+        snprintf(str_idx, sizeof(str_idx), "%d", i);
+        BSON_APPEND_UTF8(&members_array, str_idx, members[i]);
+    }
+
+    bson_append_array_end(&set, &members_array);
+    BSON_APPEND_INT32(&set, "current_member_count", member_count);
+    bson_append_document_end(update, &set);
+
+    // Print the update document for debugging
+    char* json_str = bson_as_json(update, NULL);
+    printf("Update document: %s\n", json_str);
+    bson_free(json_str);
+
+    // Perform the update
+    if (!mongoc_collection_update_one(repo->collection, query, update, NULL, NULL, &error)) {
+        printf("Error updating project: %s\n", error.message);
+        bson_destroy(query);
+        bson_destroy(update);
+        Cleanup(repo);
+        fclose(log);
+        return 1;
+    }
+
+    bson_destroy(query);
+    bson_destroy(update);
+    Cleanup(repo);
+    fclose(log);
+    return 0;
+}
 int repo() {
     printf("Initializing MongoDB...\n");
     mongoc_init();
