@@ -1,5 +1,5 @@
-To: sdsdsdsd@gdsdsdil.com
+To: ffffffffffffff@gdsdsdil.com
 From: trello clone
 Subject: Test Email
 
-Vas aktivacioni kod: http://localhost:3000/activate?link=efb718689436a2500d8ee7664b4d1765893eb71b
+Vas aktivacioni kod: http://localhost:3000/activate?link=f1ac27b8707952585d8ad90b740412e8980cc9fd

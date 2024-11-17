@@ -66,11 +66,11 @@ void Cleanup(Repository* repo) {
     }
 }
 
-int activation_hash(const char* email, const char* username) {
+int activation_hash(const char* email, const char* username, FILE* log) {
 
-    FILE* log = fopen("log.txt", "a");
-    if (log == NULL) {
-        printf("Error opening file!\n");
+    if (!log) {
+        fprintf(stderr, "No log passed\n");
+        return 4;
     }
 
     Repository* repo = New(log);
@@ -224,6 +224,7 @@ int adduser(User *user) {
     FILE* log = fopen("log.txt", "w");
     if (log == NULL) {
         printf("Error opening file!\n");
+        return 6;
     }
 
     Repository *repo = New(log); 
@@ -280,7 +281,7 @@ int adduser(User *user) {
 
     bson_destroy(doc);
 
-    if (!activation_hash(user->email, user->username)) {
+    if (!activation_hash(user->email, user->username, log)) {
         fprintf(repo->logger, "Hash generated successfully.\n");
         printf("Hash generated successfully.\n");
     }
