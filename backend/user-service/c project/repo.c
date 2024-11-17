@@ -75,7 +75,7 @@ int activation_hash(const char* email, const char* username) {
 
     Repository* repo = New(log);
     const char* db_name = "users";
-    const char* collection_name = "activation links";
+    const char* collection_name = "links";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
     fprintf(repo->logger, "Generating hash...\n");
     printf("Generating hash...\n");
@@ -109,7 +109,7 @@ int activation_hash(const char* email, const char* username) {
         fprintf(repo->logger, "SHA1Input failed with error code %d\n", err);
         fprintf(stderr, "SHA1Input failed with error code %d\n", err);
         free(forhash);
-        return 1;
+        return 2;
     }
     free(forhash);
 
@@ -119,7 +119,7 @@ int activation_hash(const char* email, const char* username) {
         fprintf(repo->logger, "SHA1Result Error %d, could not compute message digest.\n", err);
         fprintf(stderr, "SHA1Result Error %d, could not compute message digest.\n", err);
 
-        return 2;
+        return 3;
     }
 
     char hashedvalue[20 * 2 + 1];
@@ -133,6 +133,29 @@ int activation_hash(const char* email, const char* username) {
     strncpy(activation_link, hashedvalue, 41);
     printf((const char*)activation_link);
     printf("\n");
+
+    bson_t* doc = bson_new();
+    BSON_APPEND_UTF8(doc, "username", username);
+    BSON_APPEND_UTF8(doc, "email", email);
+    BSON_APPEND_UTF8(doc, "link", activation_link);
+    BSON_APPEND_UTF8(doc, "type", "activation");
+    BSON_APPEND_INT32(doc, "active", 1);
+
+    bson_error_t error;
+    if (!mongoc_collection_insert_one(repo->collection, doc, NULL, NULL, &error)) {
+        fprintf(repo->logger, "Error: Insert failed\n");
+        printf("Error: Insert failed\n");
+        bson_destroy(doc);
+        Cleanup(repo);
+        if (log) {
+            fclose(log);
+        }
+        return 4;
+    }
+    else {
+        fprintf(repo->logger, "Document inserted successfully.\n");
+        printf("Document inserted successfully.\n");
+    }
 
     return 0;
 }
@@ -274,7 +297,7 @@ int adduser(User *user) {
             "From: trello clone\r\n"
             "Subject: Test Email\r\n"
             "\r\n"
-            "Vas aktivacioni kod: http://localhost:8080/activate?link=%s\r\n", user->email, (const char*)activation_link);
+            "Vas aktivacioni kod: http://localhost:3000/activate?link=%s\r\n", user->email, (const char*)activation_link);
         fclose(payload_file);
         fprintf(repo->logger, "Written to the payload file.\n");
     }
