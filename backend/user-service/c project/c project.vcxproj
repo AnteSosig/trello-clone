@@ -134,6 +134,10 @@
     <ClCompile Include="model.h" />
     <ClCompile Include="repo.h" />
     <ClCompile Include="model.c" />
+    <ClCompile Include="SHA.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SHA.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

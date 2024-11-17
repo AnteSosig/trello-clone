@@ -7,7 +7,7 @@ typedef struct {
     char username[20];
     char first_name[20];
     char last_name[20];
-    char email[50];
+    char email[40];
     char password[50];
     int active;
 } User;

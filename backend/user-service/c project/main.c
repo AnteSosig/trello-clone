@@ -14,6 +14,19 @@ struct ConnectionInfo {
     size_t json_size;
 };
 
+int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
+
+    if (key && value) {
+        if (strcmp(key, "link") == 0) {
+
+        }
+
+        return MHD_NO;
+    }
+
+    return MHD_NO;
+}
+
 int answer_to_connection(void* cls, struct MHD_Connection* connection,
     const char* url, const char* method, const char* version,
     const char* upload_data, size_t* upload_data_size, void** con_cls) {
@@ -105,6 +118,26 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             printf("LLLLLLLLLLLLL.\n");
             return MHD_YES;
         }
+    }
+
+    if (strcmp(url, "/activate") == 0) {
+
+        printf("Received GET request for URL path: %s\n", url);
+
+        // Parse query string parameters and check them on the fly
+        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_parameters, NULL);
+
+        // Create a response
+        struct MHD_Response* response;
+        const char* response_text = "Parameters parsed and checked for /zlaja!";
+        response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+
+        // Send the response
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+
+        return ret;
+
     }
 
     // Handle other routes or return 404

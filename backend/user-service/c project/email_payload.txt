@@ -1,5 +1,5 @@
-To: aqportal@gmail.com
+To: asdsdsd@msdsdsdil.com
 From: trello clone
 Subject: Test Email
 
-Egy asszonynak kilenc lanya nem gyozi szamlalni.
+Vas aktivacioni kod: http://localhost:8080/activate?link=2a26afe7a75e3aa10c29cbeb4897d0889482ada1

@@ -30,5 +30,13 @@
     <ClCompile Include="model.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SHA.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SHA.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
