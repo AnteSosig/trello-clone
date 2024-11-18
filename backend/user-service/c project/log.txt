@@ -1,0 +1,6 @@
+Document inserted successfully.
+Generating hash...
+Document inserted successfully.
+Hash generated successfully.
+Written to the payload file.
+Email sent successfully.
