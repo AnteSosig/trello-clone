@@ -5,6 +5,9 @@ import Home from './pages/Home';
 import LoginForm from './components/Login';
 import RegisterUser from './pages/RegisterUser';
 import SearchFilter from './components/SearchFilter';
+import NotFound from './pages/NotFound';
+import EditProject from './pages/EditProject';
+import AccountConfirm from './pages/AccountConfirm';
 
 function App() {
   return (
@@ -15,6 +18,9 @@ function App() {
         <Route path="/login" element={<LoginForm />} />
         <Route path="/register" element={<RegisterUser />} />
         <Route path="/pretraga" element={<SearchFilter />} />
+        <Route path="/edit-project/:id" element={<EditProject />} />
+        <Route path="*" element={<NotFound />} />
+        <Route path="/activate" element={<AccountConfirm />} />
       </Routes>
     </Router>
   );
