@@ -136,6 +136,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             struct MHD_Response* response;
             const char* response_text = "Account activated";
             response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
             int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
             MHD_destroy_response(response);
 
@@ -145,6 +146,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             struct MHD_Response* response;
             const char* response_text = "Account activation failed";
             response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
             int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
             MHD_destroy_response(response);
 
