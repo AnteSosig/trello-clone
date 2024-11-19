@@ -14,6 +14,8 @@ typedef struct {
 
 char activation_link[41];
 
+FILE* log;
+
 Repository* New(FILE* logger) {
 
     //hardcoded for now
@@ -66,12 +68,7 @@ void Cleanup(Repository* repo) {
     }
 }
 
-int activation_hash(const char* email, const char* username, FILE* log) {
-
-    if (!log) {
-        fprintf(stderr, "No log passed\n");
-        return 4;
-    }
+int activation_hash(const char* email, const char* username) {
 
     Repository* repo = New(log);
     const char* db_name = "users";
@@ -147,9 +144,7 @@ int activation_hash(const char* email, const char* username, FILE* log) {
         printf("Error: Insert failed\n");
         bson_destroy(doc);
         Cleanup(repo);
-        if (log) {
-            fclose(log);
-        }
+
         return 4;
     }
     else {
@@ -219,19 +214,11 @@ int email(User* user, FILE* payload_file) {
 
 int adduser(User *user) {
 
-    printf("KRKAAAAAAAAAAAAN.\n");
-
-    FILE* log = fopen("log.txt", "w");
-    if (log == NULL) {
-        printf("Error opening file!\n");
-        return 6;
-    }
-
     Repository *repo = New(log); 
     const char *db_name = "users";
     const char *collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
-    printf("SMIRDIIIIIIIIM.\n");
+    printf("Dodavanje korisnika.\n");
 
     bson_t* query = BCON_NEW(
         "$or", "[",
@@ -248,9 +235,7 @@ int adduser(User *user) {
         bson_destroy(query);
         mongoc_cursor_destroy(cursor);
         Cleanup(repo);
-        if (log) {
-            fclose(log);
-        }
+
         return 1;
     }
 
@@ -269,9 +254,7 @@ int adduser(User *user) {
         printf("Error: Insert failed\n");
         bson_destroy(doc);
         Cleanup(repo);
-        if (log) {
-            fclose(log);
-        }
+
         return 2;
     }
     else {
@@ -281,7 +264,7 @@ int adduser(User *user) {
 
     bson_destroy(doc);
 
-    if (!activation_hash(user->email, user->username, log)) {
+    if (!activation_hash(user->email, user->username)) {
         fprintf(repo->logger, "Hash generated successfully.\n");
         printf("Hash generated successfully.\n");
     }
@@ -306,9 +289,7 @@ int adduser(User *user) {
         fprintf(repo->logger, "Failed to open payload file for writing.\n");
         printf("Failed to open payload file for writing.\n");
         Cleanup(repo);
-        if (log) {
-            fclose(log);
-        }
+
         return 3;
     }
 
@@ -323,26 +304,198 @@ int adduser(User *user) {
         printf("Failed to send email.\n");
         fclose(payload_file);
         Cleanup(repo);
-        if (log) {
-            fclose(log);
-        }
+
         return 4;
     }
     fclose(payload_file);
 
     Cleanup(repo);
-    if (log) {
-        fclose(log);
-    }
+
     return 0;
 
 }
 
+int activate_user(const char* username, const char* email) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "users";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Aktiviranje korisnika.\n");
+
+    bson_t* filter = BCON_NEW(
+        "$and", "[",
+        "{", "username", BCON_UTF8(username), "}",
+        "{", "email", BCON_UTF8(email), "}",
+        "]"
+    );
+    printf("Oof.\n");
+
+    // Define the update operation
+    bson_t* update = BCON_NEW("$set", "{", "active", BCON_INT32(1), "}");
+    printf("Oof.\n");
+
+    // Perform the update
+    bson_error_t error;
+    int result = mongoc_collection_update_one(
+        repo->collection,  // Collection handle
+        filter,      // Filter document
+        update,      // Update document
+        NULL,        // No additional options
+        NULL,        // No reply document needed
+        &error       // Error object
+    );
+    printf("Oof.\n");
+
+    if (result) {
+        printf("Document updated successfully.\n");
+    }
+    else {
+        fprintf(stderr, "Update failed: %s\n", error.message);
+        printf("I hate standard error.\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+int deactivate_code(const char* link) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Deaktiviranje koda.\n");
+
+    bson_t* filter = BCON_NEW(
+        "$and", "[",
+        "{", "link", BCON_UTF8(link), "}",
+        "{", "type", BCON_UTF8("activation"), "}",
+        "]"
+    );
+
+    // Define the update operation
+    bson_t* update = BCON_NEW("$set", "{", "active", BCON_INT32(0), "}");
+
+    // Perform the update
+    bson_error_t error;
+    int result = mongoc_collection_update_one(
+        repo->collection,  // Collection handle
+        filter,      // Filter document
+        update,      // Update document
+        NULL,        // No additional options
+        NULL,        // No reply document needed
+        &error       // Error object
+    );
+
+    if (result) {
+        printf("Document updated successfully2.\n");
+    }
+    else {
+        fprintf(stderr, "Update failed: %s\n", error.message);
+        return 1;
+    }
+
+    return 0;
+}
+
+int check_activation(const char* link) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Provera aktivacionog koda.\n");
+
+    const char* type = "activation";
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "link", BCON_UTF8(link), "}",
+        "{", "type", BCON_UTF8(type), "}",
+        "]"
+    );
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    char username[50];
+    char email[50];
+    int res1 = 1;
+    int res2 = 1;
+    int already_activated = 0;
+    while (mongoc_cursor_next(cursor, &doc)) {
+        // Extract and print "username" field
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "username")) {
+                const char* found_username = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_username);
+                strncpy(username, found_username, sizeof(username));
+                username[sizeof(username) - 1] = '\0';
+                res1 = 0;
+            }
+
+            // Extract other fields
+            if (bson_iter_find(&iter, "email")) {
+                const char* found_email = bson_iter_utf8(&iter, NULL);
+                printf("With email: %s\n", found_email);
+                strncpy(email, found_email, sizeof(email));
+                email[sizeof(email) - 1] = '\0';
+                res2 = 0;
+            }
+            if (bson_iter_find(&iter, "active")) {
+                int active = bson_iter_int32(&iter);
+                printf("Active: %d\n", active);
+                if (!active) {
+                    already_activated = 1;
+                }
+            }
+        }
+    }
+    if (already_activated) {
+        printf("Link already used\n");
+
+        return 1;
+    }
+
+    if (!res1 && !res2) {
+        int activated = activate_user((const char*)username, (const char*)email);
+        printf("%s a %s\n", (const char*)username, (const char*)email);
+        printf("%d\n", activated);
+        if (activated) {
+            printf("Activation failed\n");
+            return 3;
+        }
+        int deactivated = deactivate_code(link);
+        if (deactivated) {
+            printf("Link deactivation failed\n");
+            return 4;
+        }
+    }
+    else {
+        printf("No such link\n");
+        return 2;
+    }
+
+    return 0;
+}
+
 int repo() {
+
+    log = fopen("log.txt", "w");
+    if (!log) {
+        printf("Error opening file!\n");
+        return 1;
+    }
 
     mongoc_init();
     getchar();
     mongoc_cleanup();
+
+    if (log) {
+        fclose(log);
+    }
 
     return 0;
 
