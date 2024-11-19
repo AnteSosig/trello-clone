@@ -16,15 +16,19 @@ struct ConnectionInfo {
 
 int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
+    int* is_valid = (int*)cls;
+
     if (key && value) {
         if (strcmp(key, "link") == 0) {
-
+            int activation_return = check_activation((const char*)value);
+            printf("returned: %d\n", activation_return);
+            if (!activation_return) {
+                *is_valid = 1;
+            }
         }
-
-        return MHD_NO;
     }
 
-    return MHD_NO;
+    return MHD_YES;
 }
 
 int answer_to_connection(void* cls, struct MHD_Connection* connection,
@@ -123,20 +127,29 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
     if (strcmp(url, "/activate") == 0) {
 
         printf("Received GET request for URL path: %s\n", url);
+        int is_valid = 0;
 
+        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_parameters, &is_valid);
+        printf("is valid: %d\n", is_valid);
         // Parse query string parameters and check them on the fly
-        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_parameters, NULL);
+        if (is_valid) {
+            struct MHD_Response* response;
+            const char* response_text = "Account activated";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
 
-        // Create a response
-        struct MHD_Response* response;
-        const char* response_text = "Parameters parsed and checked for /zlaja!";
-        response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            return ret;
+        }
+        else {
+            struct MHD_Response* response;
+            const char* response_text = "Account activation failed";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
 
-        // Send the response
-        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-        MHD_destroy_response(response);
-
-        return ret;
+            return ret;
+        }
 
     }
 
