@@ -1,0 +1,10 @@
+^C:\USERS\SMOSMAN\DESKTOP\L8W8JWT\BUILD\CMAKEFILES\C678E4BFC5852156C7CB751501083FEF\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Smosman/Desktop/l8w8jwt -BC:/Users/Smosman/Desktop/l8w8jwt/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/Smosman/Desktop/l8w8jwt/build/l8w8jwt.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
