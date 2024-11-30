@@ -1,3 +1,4 @@
 C:\Users\Smosman\Desktop\c projekat\c project\c project\x64\Debug\c project.vcxproj.CopyComplete
 C:\Users\Smosman\Documents\GitHub\trello-clone\c projekat\c project\c project\x64\Debug\c project.vcxproj.CopyComplete
 C:\Users\Smosman\Desktop\oof\trello-clone\backend\user-service\c project\x64\Debug\c project.vcxproj.CopyComplete
+C:\Users\Smosman\Documents\GitHub\trello-clone\backend\user-service\c project\x64\Debug\c project.vcxproj.CopyComplete

@@ -8,6 +8,7 @@ const Register = () => {
     password: '',
     first_name: '',
     last_name: '',
+    role: 'USER'
   });
 
   const [error, setError] = useState('');
@@ -26,6 +27,7 @@ const Register = () => {
         last_name: formData.last_name,
         email: formData.email,
         password: formData.password,
+        role: formData.role
       };
 
       const response = await axios.post('http://localhost:8080/newuser', userPayload, {
@@ -145,6 +147,25 @@ const Register = () => {
                        focus:ring-emerald-500 focus:border-transparent backdrop-blur-lg"
               required
             />
+          </div>
+
+          <div>
+            <label htmlFor="role" className="block text-sm font-medium text-white mb-2">
+              Uloga
+            </label>
+            <select
+              id="role"
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg 
+                       text-white focus:outline-none focus:ring-2 
+                       focus:ring-emerald-500 focus:border-transparent backdrop-blur-lg
+                       [&>option]:text-gray-900 [&>option]:bg-white"
+            >
+              <option value="USER">Korisnik</option>
+              <option value="MANAGER">Menadžer</option>
+            </select>
           </div>
 
           <button
