@@ -5,6 +5,8 @@
 #include <cjson/cJSON.h>
 #include "model.h"
 #include "repo.h"
+#include "algs.h"
+#include "encode.h"
 
 #define PORT 8080
 
@@ -20,7 +22,7 @@ int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const 
 
     if (key && value) {
         if (strcmp(key, "link") == 0) {
-            int activation_return = check_activation((const char*)value);
+            int activation_return = check_activation(value);
             printf("returned: %d\n", activation_return);
             if (!activation_return) {
                 *is_valid = 1;
@@ -153,6 +155,106 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             return ret;
         }
 
+    }
+
+    if (strcmp(url, "/login") == 0 && strcmp(method, "POST") == 0) {
+
+        printf("ZLAJAAAAA.\n");
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        printf("KAKIMIIIICS.\n");
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+        // If there's upload data, accumulate it
+        if (*upload_data_size > 0) {
+            // Reallocate memory to store incoming data
+            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
+            *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
+            return MHD_YES;
+        }
+        else {
+            // All data received, process the JSON
+            cJSON* json = cJSON_Parse(conn_info->json_data);
+            if (json == NULL) {
+                const char* error_response = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
+                return MHD_YES;
+            }
+
+            cJSON* username_or_email = cJSON_GetObjectItem(json, "username_or_email");
+            char role[10];
+            if (!parse_credentials_from_json(json, role)) {
+                printf(role);
+                char* jwt;
+                size_t jwt_length;
+
+                struct l8w8jwt_encoding_params params;
+                l8w8jwt_encoding_params_init(&params);
+
+                params.alg = L8W8JWT_ALG_HS512;
+
+                params.sub = username_or_email->valuestring;
+                params.iss = "Trello clone";
+                params.aud = role;
+
+                params.iat = l8w8jwt_time(NULL);
+                params.exp = l8w8jwt_time(NULL) + 600; /* Set to expire after 10 minutes (600 seconds). */
+
+                //hardcoded for now
+                params.secret_key = (unsigned char*)"YoUR sUpEr S3krEt 1337 HMAC kEy HeRE";
+                params.secret_key_length = strlen(params.secret_key);
+
+                params.out = &jwt;
+                params.out_length = &jwt_length;
+
+                int r = l8w8jwt_encode(&params);
+
+                printf("\n l8w8jwt example HS512 token: %s \n", r == L8W8JWT_SUCCESS ? jwt : " (encoding failure) ");
+
+                char response_str[512];
+                snprintf(response_str, sizeof(response_str), "{\"token\": \"%s\", \"role\": \"%s\", \"expires\": \"%d\"}", jwt, role, 600);
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
+                    (void*)response_str, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+                MHD_destroy_response(response);
+                printf("KKKKKKKKKKKKK.\n");
+
+                /* Always free the output jwt string! */
+                l8w8jwt_free(jwt);
+            }
+            else {
+                const char* error_response = "Invalid info";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+            }
+
+            // Clean up
+            cJSON_Delete(json);
+            free(conn_info->json_data);
+            free(conn_info);
+            *con_cls = NULL;
+            printf("LLLLLLLLLLLLL.\n");
+            return MHD_YES;
+        }
     }
 
     // Handle other routes or return 404

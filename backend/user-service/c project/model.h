@@ -9,6 +9,7 @@ typedef struct {
     char last_name[20];
     char email[40];
     char password[50];
+    char role[10];
     int active;
 } User;
 

@@ -6,5 +6,6 @@
 int adduser(User* user);
 int repo();
 int check_activation(const char* link);
+int parse_credentials_from_json(const cJSON* json, char role[]);
 
 #endif

@@ -12,8 +12,6 @@ typedef struct {
     FILE* logger;
 } Repository;
 
-char activation_link[41];
-
 FILE* log;
 
 Repository* New(FILE* logger) {
@@ -68,7 +66,47 @@ void Cleanup(Repository* repo) {
     }
 }
 
-int activation_hash(const char* email, const char* username) {
+int password_hash(const char* password, char* password_location) {
+
+    SHA1Context sha;
+    int err;
+    uint8_t Message_Digest[20];
+
+    err = SHA1Reset(&sha);
+    if (err) {
+        fprintf(stderr, "SHA1Reset failed with error code %d\n", err);
+        return 1;
+    }
+
+    err = SHA1Input(&sha, (const unsigned char*)password, strlen(password));
+    if (err) {
+        fprintf(stderr, "SHA1Input failed with error code %d\n", err);
+        return 2;
+    }
+
+    err = SHA1Result(&sha, Message_Digest);
+    if (err)
+    {
+        fprintf(stderr, "SHA1Result Error %d, could not compute message digest.\n", err);
+        return 3;
+    }
+
+    char hashedvalue[20 * 2 + 1];
+    for (int i = 0; i < 20; i++) {
+        sprintf(&hashedvalue[i * 2], "%02x", Message_Digest[i]);
+    }
+    hashedvalue[20 * 2] = '\0';
+    (const char*)hashedvalue;
+    printf(hashedvalue);
+    printf("\n");
+    strncpy(password_location, hashedvalue, 41);
+    printf((const char*)password_location);
+    printf("\n");
+
+    return 0;
+}
+
+int activation_hash(const char* email, const char* username, char* activation_link) {
 
     Repository* repo = New(log);
     const char* db_name = "users";
@@ -85,6 +123,8 @@ int activation_hash(const char* email, const char* username) {
     if (err) {
         fprintf(repo->logger, "SHA1Reset failed with error code %d\n", err);
         fprintf(stderr, "SHA1Reset failed with error code %d\n", err);
+        Cleanup(repo);
+
         return 1;
     }
 
@@ -106,6 +146,8 @@ int activation_hash(const char* email, const char* username) {
         fprintf(repo->logger, "SHA1Input failed with error code %d\n", err);
         fprintf(stderr, "SHA1Input failed with error code %d\n", err);
         free(forhash);
+        Cleanup(repo);
+
         return 2;
     }
     free(forhash);
@@ -115,6 +157,7 @@ int activation_hash(const char* email, const char* username) {
     {
         fprintf(repo->logger, "SHA1Result Error %d, could not compute message digest.\n", err);
         fprintf(stderr, "SHA1Result Error %d, could not compute message digest.\n", err);
+        Cleanup(repo);
 
         return 3;
     }
@@ -152,10 +195,13 @@ int activation_hash(const char* email, const char* username) {
         printf("Document inserted successfully.\n");
     }
 
+    bson_destroy(doc);
+    Cleanup(repo);
+
     return 0;
 }
 
-int email(User* user, FILE* payload_file) {
+int emailto(char email[], FILE* payload_file) {
 
     if (!payload_file) {
         fprintf(stderr, "Failed to open payload file for reading\n");
@@ -179,7 +225,7 @@ int email(User* user, FILE* payload_file) {
         printf("nagy a pusztulas.\n");
 
         struct curl_slist* recipients = NULL;
-        recipients = curl_slist_append(recipients, user->email);
+        recipients = curl_slist_append(recipients, email);
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
 
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, NULL);
@@ -239,13 +285,18 @@ int adduser(User *user) {
         return 1;
     }
 
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+
     bson_t* doc = bson_new();
     BSON_APPEND_UTF8(doc, "username", user->username);
     BSON_APPEND_UTF8(doc, "first_name", user->first_name);
     BSON_APPEND_UTF8(doc, "last_name", user->last_name);
     BSON_APPEND_UTF8(doc, "email", user->email);
-    //plaintext
-    BSON_APPEND_UTF8(doc, "password", user->password);
+    char password[41];
+    password_hash(user->password, password);
+    BSON_APPEND_UTF8(doc, "password", password);
+    BSON_APPEND_UTF8(doc, "role", user->role);
     BSON_APPEND_INT32(doc, "active", 0);
 
     bson_error_t error;
@@ -264,7 +315,8 @@ int adduser(User *user) {
 
     bson_destroy(doc);
 
-    if (!activation_hash(user->email, user->username)) {
+    char activation_link[41];
+    if (!activation_hash(user->email, user->username, activation_link)) {
         fprintf(repo->logger, "Hash generated successfully.\n");
         printf("Hash generated successfully.\n");
     }
@@ -294,7 +346,7 @@ int adduser(User *user) {
     }
 
     payload_file = fopen("email_payload.txt", "r");
-    if (!email(user, payload_file)) {
+    if (!emailto(user->email, payload_file)) {
         printf("ubicu se bukvalno.\n");
         fprintf(repo->logger, "Email sent successfully.\n");
         printf("Email sent successfully.\n");
@@ -353,8 +405,46 @@ int activate_user(const char* username, const char* email) {
     else {
         fprintf(stderr, "Update failed: %s\n", error.message);
         printf("I hate standard error.\n");
+        Cleanup(repo);
+
         return 1;
     }
+
+    FILE* payload_file = fopen("confirmation.txt", "w");
+    if (payload_file) {
+        fprintf(payload_file, "To: %s\r\n"
+            "From: trello clone\r\n"
+            "Subject: Test Email\r\n"
+            "\r\n"
+            "Vas nalog je aktiviran.\r\n", username);
+        fclose(payload_file);
+        fprintf(repo->logger, "Written to the payload file.\n");
+    }
+    else {
+        fprintf(repo->logger, "Failed to open payload file for writing.\n");
+        printf("Failed to open payload file for writing.\n");
+        Cleanup(repo);
+
+        return 3;
+    }
+
+    payload_file = fopen("confirmation.txt", "r");
+    if (!emailto(email, payload_file)) {
+        printf("ubicu se bukvalno.\n");
+        fprintf(repo->logger, "Email sent successfully.\n");
+        printf("Email sent successfully.\n");
+    }
+    else {
+        fprintf(repo->logger, "Failed to send email.\n");
+        printf("Failed to send email.\n");
+        fclose(payload_file);
+        Cleanup(repo);
+
+        return 4;
+    }
+    fclose(payload_file);
+
+    Cleanup(repo);
 
     return 0;
 }
@@ -393,8 +483,12 @@ int deactivate_code(const char* link) {
     }
     else {
         fprintf(stderr, "Update failed: %s\n", error.message);
+        Cleanup(repo);
+
         return 1;
     }
+
+    Cleanup(repo);
 
     return 0;
 }
@@ -455,6 +549,8 @@ int check_activation(const char* link) {
     }
     if (already_activated) {
         printf("Link already used\n");
+        bson_destroy(query);
+        mongoc_cursor_destroy(cursor);
 
         return 1;
     }
@@ -465,20 +561,132 @@ int check_activation(const char* link) {
         printf("%d\n", activated);
         if (activated) {
             printf("Activation failed\n");
+            bson_destroy(query);
+            mongoc_cursor_destroy(cursor);
+
             return 3;
         }
         int deactivated = deactivate_code(link);
         if (deactivated) {
             printf("Link deactivation failed\n");
+            bson_destroy(query);
+            mongoc_cursor_destroy(cursor);
+
             return 4;
         }
     }
     else {
         printf("No such link\n");
+        bson_destroy(query);
+        mongoc_cursor_destroy(cursor);
+
         return 2;
     }
 
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+
     return 0;
+}
+
+int parse_credentials_from_json(const cJSON* json, char role[]) {
+
+    cJSON* username_or_email = cJSON_GetObjectItem(json, "username_or_email");
+    cJSON* password = cJSON_GetObjectItem(json, "password");
+    if (!cJSON_IsString(username_or_email) || !cJSON_IsString(password)) {
+        return 1;
+    }
+
+    char hashed_password[41];
+    password_hash(password->valuestring, hashed_password);
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "users";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Trazenje korisnika.\n");
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "email", BCON_UTF8(username_or_email->valuestring), "}",
+        "{", "password", BCON_UTF8(hashed_password), "}",
+        "]"
+    );
+    printf("Trazenje nigera.\n");
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    if (mongoc_cursor_next(cursor, &doc)) {
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "role")) {
+                const char* found_role = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(role, found_role, sizeof(role));
+                role[sizeof(role) - 1] = '\0';
+            }
+            if (bson_iter_find(&iter, "active")) {
+                int active = bson_iter_int32(&iter);
+                printf("Active: %d\n", active);
+                if (!active) {
+                    return 1;
+                }
+            }
+        }
+        fprintf(repo->logger, "User found.\n");
+        printf("User found.\n");
+        bson_destroy(query);
+        mongoc_cursor_destroy(cursor);
+        Cleanup(repo);
+
+        return 0;
+    }
+    printf("Trazenje korisnika.\n");
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+
+    bson_t* query2 = BCON_NEW(
+        "$and", "[",
+        "{", "username", BCON_UTF8(username_or_email->valuestring), "}",
+        "{", "password", BCON_UTF8(hashed_password), "}",
+        "]"
+    );
+
+    mongoc_cursor_t* cursor2 = mongoc_collection_find_with_opts(repo->collection, query2, NULL, NULL);
+    const bson_t* doc2;
+    if (mongoc_cursor_next(cursor2, &doc2)) {
+        bson_iter_t iter2;
+        if (bson_iter_init(&iter2, doc2)) {
+            if (bson_iter_find(&iter2, "role")) {
+                const char* found_role = bson_iter_utf8(&iter2, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(role, found_role, sizeof(role));
+                role[sizeof(role) - 1] = '\0';
+            }
+            if (bson_iter_find(&iter2, "active")) {
+                int active = bson_iter_int32(&iter2);
+                printf("Active: %d\n", active);
+                if (!active) {
+                    return 1;
+                }
+            }
+        }
+        fprintf(repo->logger, "User found.\n");
+        printf("User found.\n");
+        bson_destroy(query2);
+        mongoc_cursor_destroy(cursor2);
+        Cleanup(repo);
+
+        return 0;
+    }
+
+    bson_destroy(query2);
+    mongoc_cursor_destroy(cursor2);
+    Cleanup(repo);
+
+    return 1;
 }
 
 int repo() {
