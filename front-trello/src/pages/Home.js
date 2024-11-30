@@ -12,7 +12,7 @@ const Home = () => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8080/projects');
+      const response = await fetch('http://localhost:8081/projects');
       if (!response.ok) {
         throw new Error('Failed to fetch projects');
       }
@@ -134,7 +134,7 @@ const Home = () => {
       e.preventDefault();
       
       try {
-        const response = await fetch('http://localhost:8080/newproject', {
+        const response = await fetch('http://localhost:8081/newproject', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

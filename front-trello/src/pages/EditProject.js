@@ -11,7 +11,7 @@ const EditProject = () => {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const response = await fetch(`http://localhost:8080/projects/${id}`);
+        const response = await fetch(`http://localhost:8081/projects/${id}`);
         if (!response.ok) throw new Error('Failed to fetch project');
         const text = await response.text();
         const data = JSON.parse(text);
@@ -41,7 +41,7 @@ const EditProject = () => {
     try {
       console.log('Sending update request with members:', newMembers); // Debug log
       
-      const response = await fetch(`http://localhost:8080/updateproject/${id}`, {
+      const response = await fetch(`http://localhost:8081/updateproject/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
