@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import Cookies from 'js-cookie';
 
 const LoginForm = () => {
-  const [email, setEmail] = useState('');
+  const [username_or_email, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -10,25 +11,60 @@ const LoginForm = () => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
+    
+    console.log('Attempting login with:', { username_or_email, password });
 
     try {
-      const response = await fetch('http://localhost:8080/api/korisnici/prijava', {
+      const response = await fetch('http://localhost:8080/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username_or_email, password }),
       });
 
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
         throw new Error('Pogrešni podaci za prijavu.');
       }
 
       const data = await response.json();
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('uloga', data.uloga);
+      console.log('Response data:', data);
+      
+      // Set cookies with expiration
+      const expirationInSeconds = data.expires || 3600; // default 1 hour if not provided
+      const expirationInDays = expirationInSeconds / (24 * 60 * 60); // Convert seconds to days
+
+      console.log('Setting cookies with expiration (days):', expirationInDays);
+
+      Cookies.set('token', data.token, { 
+        expires: expirationInDays,
+        sameSite: 'strict'
+      });
+      
+      Cookies.set('role', data.role, {
+        expires: expirationInDays,
+        sameSite: 'strict'
+      });
+
+      Cookies.set('sessionExpiration', new Date(Date.now() + expirationInSeconds * 1000).toISOString(), {
+        expires: expirationInDays,
+        sameSite: 'strict'
+      });
+
+      console.log('Stored Cookies:');
+      console.log('Token:', Cookies.get('token'));
+      console.log('Role:', Cookies.get('role'));
+      console.log('Session Expiration:', Cookies.get('sessionExpiration'));
+      
+      // Or log all cookies at once
+      console.log('All Cookies:', Cookies.get());
+
       setSuccessMessage('Uspešno ste ulogovani.');
+      
     } catch (error) {
+      console.error('Login error:', error);
       setError(error.message);
     }
   };
@@ -54,18 +90,18 @@ const LoginForm = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-              Email adresa
+            <label htmlFor="username_or_email" className="block text-sm font-medium text-white mb-2">
+              Korisničko ime ili email
             </label>
             <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              id="username_or_email"
+              value={username_or_email}
+              onChange={(e) => setUsernameOrEmail(e.target.value)}
               className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg 
                        text-white placeholder-white/50 focus:outline-none focus:ring-2 
                        focus:ring-emerald-500 focus:border-transparent backdrop-blur-lg"
-              placeholder="Unesite email"
+              placeholder="Unesite korisničko ime ili email"
               required
             />
           </div>
