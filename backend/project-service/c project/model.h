@@ -15,6 +15,7 @@ typedef struct {
     int min_members;
     int max_members;
     int current_member_count;
+    char creator_id[MAX_STRING_LENGTH];
 } Project;
 
 int parse_project_from_json(const cJSON* json, Project* project);

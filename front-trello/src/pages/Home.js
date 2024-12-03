@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
+import { jwtDecode } from "jwt-decode";
 
 const Home = () => {
   const [isGridView, setIsGridView] = useState(true);
@@ -9,8 +10,10 @@ const Home = () => {
   const [error, setError] = useState(null);
   const [selectedCard, setSelectedCard] = useState(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [userId, setUserId] = useState(null);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('http://localhost:8081/projects');
@@ -26,18 +29,60 @@ const Home = () => {
         current_member_count: Number(project.current_member_count?.$numberInt || project.current_member_count),
       }));
       
-      setCards(transformedData);
+      const filteredData = transformedData.filter(project => {
+        if (userRole === 'MANAGER') {
+          return project.moderator === userId;
+        } else if (userRole === 'USER') {
+          return project.members.includes(userId);
+        }
+        return false;
+      });
+      
+      console.log('All projects:', data);
+      console.log('Filtered projects:', filteredData);
+      console.log('Current user ID:', userId);
+      setCards(filteredData);
     } catch (err) {
       console.error('Error fetching projects:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, userRole]);
 
   useEffect(() => {
-    fetchProjects();
+    try {
+      const tokenCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('token='));
+      
+      if (!tokenCookie) {
+        console.error('No token found in cookies');
+        setError('Authentication required');
+        setLoading(false);
+        return;
+      }
+
+      const token = tokenCookie.split('=')[1];
+      const decodedToken = jwtDecode(token);
+      console.log('Decoded token:', decodedToken);
+      setUserRole(decodedToken.aud);
+      setUserId(decodedToken.sub);
+      console.log('User ID set to:', decodedToken.sub);
+
+      fetchProjects();
+    } catch (err) {
+      console.error('Error processing token:', err);
+      setError('Authentication error');
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (userId && userRole) {
+      fetchProjects();
+    }
+  }, [userId, userRole, fetchProjects]);
 
   if (loading) {
     return (
@@ -58,6 +103,11 @@ const Home = () => {
   const DetailModal = ({ card, onClose }) => {
     const navigate = useNavigate();
 
+    const handleClose = () => {
+      onClose();
+      fetchProjects();
+    };
+
     if (!card) return null;
 
     const projectId = card._id?.$oid || card._id;
@@ -70,7 +120,7 @@ const Home = () => {
             <div className="flex gap-4">
               <button 
                 onClick={() => {
-                  onClose();
+                  handleClose();
                   navigate(`/edit-project/${projectId}`);
                 }}
                 className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
@@ -78,7 +128,7 @@ const Home = () => {
                 Edit Members
               </button>
               <button 
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-white/80 hover:text-white"
               >
                 ✕
@@ -123,7 +173,6 @@ const Home = () => {
 
   const NewProjectModal = ({ onClose }) => {
     const [formData, setFormData] = useState({
-      moderator: '',
       project: '',
       estimated_completion_date: '',
       min_members: 1,
@@ -164,6 +213,7 @@ const Home = () => {
           },
           body: JSON.stringify({
             ...formData,
+            moderator: userId,
             current_member_count: formData.members.filter(m => m).length
           }),
         });
@@ -250,18 +300,6 @@ const Home = () => {
                 required
                 className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
                 value={formData.project}
-                onChange={handleInputChange}
-              />
-            </div>
-
-            <div>
-              <label className="block text-white mb-2">Moderator</label>
-              <input
-                type="text"
-                name="moderator"
-                required
-                className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                value={formData.moderator}
                 onChange={handleInputChange}
               />
             </div>
@@ -405,13 +443,15 @@ const Home = () => {
               {isGridView ? 'Switch to List View' : 'Switch to Grid View'}
             </button>
             
-            <button
-              onClick={() => setShowNewProjectModal(true)}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium 
-                hover:bg-emerald-700 transition-colors duration-300"
-            >
-              New Project
-            </button>
+            {userRole === 'MANAGER' && (
+              <button
+                onClick={() => setShowNewProjectModal(true)}
+                className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium 
+                  hover:bg-emerald-700 transition-colors duration-300"
+              >
+                New Project
+              </button>
+            )}
           </div>
         </div>
 

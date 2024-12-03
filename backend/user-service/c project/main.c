@@ -7,6 +7,7 @@
 #include "repo.h"
 #include "algs.h"
 #include "encode.h"
+#include <jwt.h> 
 
 #define PORT 8080
 

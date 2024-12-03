@@ -7,20 +7,20 @@
       "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\main.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\repo.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\repo.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\model.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\model.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\model.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\repo.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{61FF2E22-09D6-4BB1-B7A0-222D897DA603}|c project\\c project.vcxproj|solutionrelative:c project\\repo.c||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -34,13 +34,13 @@
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "repo.c",
               "DocumentMoniker": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.c",
               "RelativeDocumentMoniker": "c project\\repo.c",
               "ToolTip": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.c",
               "RelativeToolTip": "c project\\repo.c",
-              "ViewState": "AgIAAAIBAAAAAAAAAAAAwB0BAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAFEBAAAAAAAAAAAAwHQBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000423|",
               "WhenOpened": "2024-11-05T21:36:19.257Z"
             },
@@ -52,45 +52,44 @@
               "RelativeDocumentMoniker": "c project\\main.c",
               "ToolTip": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\main.c",
               "RelativeToolTip": "c project\\main.c",
-              "ViewState": "AgIAAAEAAAAAAAAAAAAYwAgAAAAQAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000423|",
               "WhenOpened": "2024-11-05T21:36:19.711Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
               "Title": "repo.h",
               "DocumentMoniker": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.h",
               "RelativeDocumentMoniker": "c project\\repo.h",
               "ToolTip": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\repo.h",
               "RelativeToolTip": "c project\\repo.h",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAwAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2024-11-05T21:36:19.716Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-11-05T21:36:19.716Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "model.c",
               "DocumentMoniker": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.c",
               "RelativeDocumentMoniker": "c project\\model.c",
               "ToolTip": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.c",
               "RelativeToolTip": "c project\\model.c",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAG8AAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAEwAAAAAAAAAAAAAwG8AAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000423|",
               "WhenOpened": "2024-11-05T21:36:30.635Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 1,
               "Title": "model.h",
               "DocumentMoniker": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.h",
               "RelativeDocumentMoniker": "c project\\model.h",
               "ToolTip": "C:\\Users\\krist\\OneDrive\\Documents\\GitHub\\trello-clone\\backend\\project-service\\c project\\model.h",
               "RelativeToolTip": "c project\\model.h",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAGAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
               "WhenOpened": "2024-11-05T21:36:19.717Z"
             }

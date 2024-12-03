@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import debounce from 'lodash/debounce';
 
 const EditProject = () => {
   const { id } = useParams();
@@ -7,6 +8,29 @@ const EditProject = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchResults, setSearchResults] = useState({});
+  const [isSearching, setIsSearching] = useState({});
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce(async (searchTerm, index) => {
+      if (searchTerm.length >= 4) {
+        setIsSearching(prev => ({ ...prev, [index]: true }));
+        try {
+          const response = await fetch(`http://localhost:8080/finduser?name=${searchTerm}`);
+          const data = await response.json();
+          setSearchResults(prev => ({ ...prev, [index]: data }));
+        } catch (error) {
+          console.error('Error searching users:', error);
+        } finally {
+          setIsSearching(prev => ({ ...prev, [index]: false }));
+        }
+      } else {
+        setSearchResults(prev => ({ ...prev, [index]: [] }));
+      }
+    }, 300),
+    []
+  );
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -16,7 +40,6 @@ const EditProject = () => {
         const text = await response.text();
         const data = JSON.parse(text);
         
-        // Transform the data if needed
         const transformedData = {
           ...data,
           _id: data._id?.$oid || data._id,
@@ -39,7 +62,7 @@ const EditProject = () => {
 
   const handleMemberUpdate = async (newMembers) => {
     try {
-      console.log('Sending update request with members:', newMembers); // Debug log
+      console.log('Sending update request with members:', newMembers);
       
       const response = await fetch(`http://localhost:8081/updateproject/${id}`, {
         method: 'PATCH',
@@ -53,18 +76,17 @@ const EditProject = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server response:', errorText); // Debug log
+        console.error('Server response:', errorText);
         throw new Error('Failed to update members');
       }
       
-      // Update local state
       setProject(prev => ({
         ...prev,
         members: newMembers,
         current_member_count: newMembers.length
       }));
     } catch (err) {
-      console.error('Update error:', err); // Debug log
+      console.error('Update error:', err);
       setError(err.message);
     }
   };
@@ -88,6 +110,21 @@ const EditProject = () => {
 
   const updateMember = (index, value) => {
     const newMembers = project.members.map((m, i) => i === index ? value : m);
+    setProject(prev => ({
+      ...prev,
+      members: newMembers
+    }));
+    
+    if (value.length >= 4 && !searchResults[index]?.some(user => user.username === value)) {
+      debouncedSearch(value, index);
+    } else {
+      setSearchResults(prev => ({ ...prev, [index]: [] }));
+    }
+  };
+
+  const selectUser = (index, username) => {
+    setSearchResults(prev => ({ ...prev, [index]: [] }));
+    const newMembers = project.members.map((m, i) => i === index ? username : m);
     setProject(prev => ({
       ...prev,
       members: newMembers
@@ -138,22 +175,45 @@ const EditProject = () => {
             <div>
               <label className="block text-white mb-4 font-semibold">Members:</label>
               {project.members.map((member, index) => (
-                <div key={index} className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={member}
-                    onChange={(e) => updateMember(index, e.target.value)}
-                    className="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                    placeholder="Member name"
-                  />
-                  {project.members.length > project.min_members && (
-                    <button
-                      type="button"
-                      onClick={() => removeMember(index)}
-                      className="px-4 py-2 bg-red-500/20 text-white rounded-lg hover:bg-red-500/30"
-                    >
-                      Remove
-                    </button>
+                <div key={index} className="relative mb-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={member}
+                        onChange={(e) => updateMember(index, e.target.value)}
+                        className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                        placeholder="Member name"
+                      />
+                      {isSearching[index] && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        </div>
+                      )}
+                    </div>
+                    {project.members.length > project.min_members && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(index)}
+                        className="px-4 py-2 bg-red-500/20 text-white rounded-lg hover:bg-red-500/30"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  
+                  {searchResults[index]?.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white/10 backdrop-blur-lg rounded-lg border border-white/20 max-h-48 overflow-y-auto">
+                      {searchResults[index].map((user, userIndex) => (
+                        <div
+                          key={userIndex}
+                          className="px-4 py-2 text-white hover:bg-white/20 cursor-pointer"
+                          onClick={() => selectUser(index, user.username)}
+                        >
+                          {user.username} ({user.first_name} {user.last_name})
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
