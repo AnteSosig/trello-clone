@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import debounce from 'lodash/debounce';
 
 const Home = () => {
   const [isGridView, setIsGridView] = useState(true);
@@ -129,6 +130,28 @@ const Home = () => {
       max_members: 2,
       members: ['']
     });
+    const [searchResults, setSearchResults] = useState({});
+    const [isSearching, setIsSearching] = useState({});
+
+    const debouncedSearch = useCallback(
+      debounce(async (searchTerm, index) => {
+        if (searchTerm.length >= 4) {
+          setIsSearching(prev => ({ ...prev, [index]: true }));
+          try {
+            const response = await fetch(`http://localhost:8080/finduser?name=${searchTerm}`);
+            const data = await response.json();
+            setSearchResults(prev => ({ ...prev, [index]: data }));
+          } catch (error) {
+            console.error('Error searching users:', error);
+          } finally {
+            setIsSearching(prev => ({ ...prev, [index]: false }));
+          }
+        } else {
+          setSearchResults(prev => ({ ...prev, [index]: [] }));
+        }
+      }, 300),
+      []
+    );
 
     const handleSubmit = async (e) => {
       e.preventDefault();
@@ -171,6 +194,11 @@ const Home = () => {
         ...prev,
         members: prev.members.filter((_, i) => i !== index)
       }));
+      setSearchResults(prev => {
+        const newResults = { ...prev };
+        delete newResults[index];
+        return newResults;
+      });
     };
 
     const updateMember = (index, value) => {
@@ -178,6 +206,23 @@ const Home = () => {
         ...prev,
         members: prev.members.map((m, i) => i === index ? value : m)
       }));
+      
+      if (value.length >= 4 && !searchResults[index]?.some(user => user.username === value)) {
+        debouncedSearch(value, index);
+      } else {
+        setSearchResults(prev => ({ ...prev, [index]: [] }));
+      }
+    };
+
+    const selectUser = (index, username) => {
+      setSearchResults(prev => ({ ...prev, [index]: [] }));
+      
+      setTimeout(() => {
+        setFormData(prev => ({
+          ...prev,
+          members: prev.members.map((m, i) => i === index ? username : m)
+        }));
+      }, 100);
     };
 
     const handleInputChange = (e) => {
@@ -263,28 +308,52 @@ const Home = () => {
             <div>
               <label className="block text-white mb-2">Members</label>
               {formData.members.map((member, index) => (
-                <div key={index} className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    className="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                    value={member}
-                    onChange={(e) => updateMember(index, e.target.value)}
-                    placeholder="Member name"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeMemberField(index)}
-                    className="px-4 py-2 bg-red-500/20 text-white rounded-lg hover:bg-red-500/30"
-                  >
-                    Remove
-                  </button>
+                <div key={index} className="relative mb-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                        value={member}
+                        onChange={(e) => updateMember(index, e.target.value)}
+                        placeholder="Member name"
+                      />
+                      {isSearching[index] && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeMemberField(index)}
+                      className="px-4 py-2 bg-red-500/20 text-white rounded-lg hover:bg-red-500/30"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  
+                  {searchResults[index]?.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white/10 backdrop-blur-lg rounded-lg border border-white/20 max-h-48 overflow-y-auto">
+                      {searchResults[index].map((user, userIndex) => (
+                        <div
+                          key={userIndex}
+                          className="px-4 py-2 text-white hover:bg-white/20 cursor-pointer"
+                          onClick={() => selectUser(index, user.username)}
+                        >
+                          {user.username} ({user.first_name} {user.last_name})
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
+
               {formData.members.length < formData.max_members && (
                 <button
                   type="button"
                   onClick={addMemberField}
-                  className="mt-2 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30"
+                  className="mt-2 px-4 py-2 bg-emerald-600/20 text-white rounded-lg hover:bg-emerald-600/30"
                 >
                   Add Member
                 </button>
