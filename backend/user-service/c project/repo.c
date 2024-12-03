@@ -61,6 +61,7 @@ Repository* New(FILE* logger) {
 // Cleanup function to release resources
 void Cleanup(Repository* repo) {
     if (repo) {
+        mongoc_collection_destroy(repo->collection);
         mongoc_client_destroy(repo->client);
         free(repo);
     }
@@ -687,6 +688,59 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
     Cleanup(repo);
 
     return 1;
+}
+
+int find_users(const char* name, User users[], int size, int* number_of_results) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "users";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Trazenje korisnika.\n");
+    printf("IHATENIGGERS %d\n", size);
+
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "username", "{", "$regex", BCON_UTF8(name), "}", "}",
+        "{", "active", BCON_INT32(1), "}",
+        "]"
+    );
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    while (mongoc_cursor_next(cursor, &doc) && *number_of_results < size) {
+        bson_iter_t iter;
+
+        // Initialize the User struct
+        memset(&users[*number_of_results], 0, sizeof(User));
+
+        // Parse the document fields into the User struct
+        if (bson_iter_init_find(&iter, doc, "username") && BSON_ITER_HOLDS_UTF8(&iter)) {
+            strncpy(users[*number_of_results].username, bson_iter_utf8(&iter, NULL), sizeof(users[*number_of_results].username) - 1);
+        }
+        if (bson_iter_init_find(&iter, doc, "first_name") && BSON_ITER_HOLDS_UTF8(&iter)) {
+            strncpy(users[*number_of_results].first_name, bson_iter_utf8(&iter, NULL), sizeof(users[*number_of_results].first_name) - 1);
+        }
+        if (bson_iter_init_find(&iter, doc, "last_name") && BSON_ITER_HOLDS_UTF8(&iter)) {
+            strncpy(users[*number_of_results].last_name, bson_iter_utf8(&iter, NULL), sizeof(users[*number_of_results].last_name) - 1);
+        }
+
+        printf("number of results: %d\n", *number_of_results);
+        ++(*number_of_results);
+    }
+    printf("nigger %d\n", *number_of_results);
+
+    if (mongoc_cursor_error(cursor, NULL)) {
+        fprintf(stderr, "Error occurred while iterating over the cursor.\n");
+
+        return 1;
+    }
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+    Cleanup(repo);
+
+    return 0;
 }
 
 int repo() {

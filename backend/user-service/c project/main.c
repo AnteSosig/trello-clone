@@ -16,6 +16,12 @@ struct ConnectionInfo {
     size_t json_size;
 };
 
+struct Usersearch {
+    User* users;
+    int size;
+    int* number_of_results;
+};
+
 int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
     int* is_valid = (int*)cls;
@@ -30,6 +36,33 @@ int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const 
         }
     }
 
+    return MHD_YES;
+}
+
+int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
+
+    struct Usersearch* userstruct = (struct Usersearch*)cls;
+    printf("number of prefilled nigger results: %d\n", *userstruct->number_of_results);
+
+    if (key && value) {
+        if (strcmp(key, "name") == 0) {
+            printf(value);
+            printf("\n");
+
+            int suiseiseki = find_users(value, userstruct->users, userstruct->size, userstruct->number_of_results);
+            printf("number of results: %d\n", *userstruct->number_of_results);
+            printf("size: %d\n", userstruct->size);
+
+            if (!suiseiseki) {
+                if (*userstruct->number_of_results > 0) {
+                    printf("First name: %s\n", userstruct->users[0].first_name);
+                }
+            }
+            else {
+                printf("Finding users failed\n");
+            }
+        }
+    }
     return MHD_YES;
 }
 
@@ -255,6 +288,65 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             printf("LLLLLLLLLLLLL.\n");
             return MHD_YES;
         }
+    }
+
+    if (strcmp(url, "/finduser") == 0 && strcmp(method, "GET") == 0) {
+
+        printf("oof\n");
+        int size = 4;
+        int number_of_results = 0;
+        User* users = malloc(sizeof(User) * size);
+        struct Usersearch foundusers = {
+            .users = users,
+            .size = size,
+            .number_of_results = &number_of_results
+        };
+        printf("number of prefilled nigger results: %d\n", *foundusers.number_of_results);
+
+        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_search_parameters, &foundusers);
+
+        if (!foundusers.number_of_results) {
+            printf("nigga\n");
+        }
+        else {
+            printf("faggot\n");
+            printf("number of nigger results: %d\n", *foundusers.number_of_results);
+        }
+
+        char* response_str = (char*)malloc(1024);
+        memset(response_str, 0, 1024);
+        response_str[0] = '[';
+        int len = 1;
+        for (int i = 0; i < *foundusers.number_of_results; ++i) {
+            const char* username = foundusers.users[i].username;
+            const char* first_name = foundusers.users[i].first_name;
+            const char* last_name = foundusers.users[i].last_name;
+            char user[255];
+            snprintf(user, sizeof(user), "{\"username\": \"%s\", \"first_name\": \"%s\", \"last_name\": \"%s\"},", username, first_name, last_name);
+            int userlen = strlen(user);
+            for (int j = 0; j < userlen; ++j) {
+                response_str[len + j] = user[j];
+            }
+            len = strlen(response_str);
+        }
+        if (strlen(response_str) == 1) {
+            response_str[len] = ']';
+        }
+        else {
+            response_str[len - 1] = ']';
+        }
+        printf("%s\n", response_str);
+
+        struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
+            (void*)response_str, MHD_RESPMEM_MUST_COPY);
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+
+        free(users);
+        free(response_str);
+
+        return ret;
     }
 
     // Handle other routes or return 404
