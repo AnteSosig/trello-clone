@@ -1,5 +1,0 @@
-To: zykjqfhajsbqfmnrrq@nbmbb.com
-From: trello clone
-Subject: Test Email
-
-Vas aktivacioni kod: http://localhost:3000/activate?link=51dfbaf54a786c03945941deafa5f322f31d4257

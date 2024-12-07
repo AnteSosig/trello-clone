@@ -5,6 +5,8 @@
 #include <cjson/cJSON.h>
 #include "model.h"
 #include "repo.h"
+#include "algs.h"
+#include "decode.h"
 
 #define PORT 8081
 

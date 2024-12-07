@@ -1,1 +1,6 @@
-﻿  c project.vcxproj -> C:\Users\krist\OneDrive\Documents\GitHub\trello-clone\backend\project-service\x64\Debug\c project.exe
+﻿x64\Debug\model.obj : warning LNK4042: object specified more than once; extras ignored
+x64\Debug\repo.obj : warning LNK4042: object specified more than once; extras ignored
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  c project.vcxproj -> C:\Users\Smosman\Documents\GitHub\trello-clone\backend\project-service\x64\Debug\c project.exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.
