@@ -118,14 +118,25 @@ const Home = () => {
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-3xl font-bold text-white">{card.project}</h2>
             <div className="flex gap-4">
+              {userRole === 'MANAGER' && (
+                <button 
+                  onClick={() => {
+                    handleClose();
+                    navigate(`/edit-project/${projectId}`);
+                  }}
+                  className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                >
+                  Edit Members
+                </button>
+              )}
               <button 
                 onClick={() => {
                   handleClose();
-                  navigate(`/edit-project/${projectId}`);
+                  navigate(`/add-tasks/${projectId}`);
                 }}
                 className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
               >
-                Edit Members
+                {userRole === 'USER' ? 'Tasks' : 'Add Tasks'}
               </button>
               <button 
                 onClick={handleClose}
@@ -430,7 +441,7 @@ const Home = () => {
             Dobrodosli na Trello Clone
           </h1>
           <p className="text-xl text-white/90 leading-relaxed mb-6">
-            Svi projekti za vase prijatelje i gejmere na jednom mestu
+            
           </p>
           
           {/* View Toggle and New Project Buttons */}

@@ -8,6 +8,7 @@ import SearchFilter from './components/SearchFilter';
 import NotFound from './pages/NotFound';
 import EditProject from './pages/EditProject';
 import AccountConfirm from './pages/AccountConfirm';
+import AddTasks from './pages/AddTasks';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/register" element={<RegisterUser />} />
         <Route path="/pretraga" element={<SearchFilter />} />
         <Route path="/edit-project/:id" element={<EditProject />} />
+        <Route path="/add-tasks/:projectId" element={<AddTasks />} />
         <Route path="*" element={<NotFound />} />
         <Route path="/activate" element={<AccountConfirm />} />
       </Routes>

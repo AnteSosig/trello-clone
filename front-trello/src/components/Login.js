@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import Cookies from 'js-cookie';
+import { useNavigate } from 'react-router-dom';
 
 const LoginForm = () => {
   const [username_or_email, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,10 +35,8 @@ const LoginForm = () => {
       console.log('Response data:', data);
       
       // Set cookies with expiration
-      const expirationInSeconds = data.expires || 3600; // default 1 hour if not provided
-      const expirationInDays = expirationInSeconds / (24 * 60 * 60); // Convert seconds to days
-
-      console.log('Setting cookies with expiration (days):', expirationInDays);
+      const expirationInSeconds = data.expires || 3600;
+      const expirationInDays = expirationInSeconds / (24 * 60 * 60);
 
       Cookies.set('token', data.token, { 
         expires: expirationInDays,
@@ -53,15 +53,12 @@ const LoginForm = () => {
         sameSite: 'strict'
       });
 
-      console.log('Stored Cookies:');
-      console.log('Token:', Cookies.get('token'));
-      console.log('Role:', Cookies.get('role'));
-      console.log('Session Expiration:', Cookies.get('sessionExpiration'));
-      
-      // Or log all cookies at once
-      console.log('All Cookies:', Cookies.get());
-
       setSuccessMessage('Uspešno ste ulogovani.');
+      
+      // Add a small delay before redirecting to show the success message
+      setTimeout(() => {
+        navigate('/');
+      }, 1000);
       
     } catch (error) {
       console.error('Login error:', error);
