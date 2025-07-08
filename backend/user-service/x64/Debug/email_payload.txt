@@ -1,0 +1,5 @@
+To: golay48064@iminko.com
+From: trello clone
+Subject: Test Email
+
+Vas aktivacioni kod: http://localhost:3000/activate?link=77312d0fc9ba2bc2f59aae84a938329cdf9a5063
