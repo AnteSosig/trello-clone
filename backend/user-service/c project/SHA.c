@@ -1,4 +1,4 @@
-#include "sha.h"
+#include "SHA.h"
 
 /*
  *  Define the SHA1 circular left shift macro

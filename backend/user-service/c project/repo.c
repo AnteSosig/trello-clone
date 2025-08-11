@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "model.h"
 #include "repo.h"
-#include "sha.h"
+#include "SHA.h"
 
 typedef struct {
     mongoc_client_t* client;
