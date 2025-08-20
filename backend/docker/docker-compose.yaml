@@ -1,0 +1,21 @@
+services:
+    api-gateway:
+        build: ./api-gateway
+        ports:
+            - "${GATEWAY_PORT}:8443"
+        env_file:
+            ./api-gateway/.env
+
+    user-service:
+        build: ./user-service
+        ports:
+            - "${USER_PORT}:8080"
+        env_file:
+            ./user-service/.env
+
+    project-service:
+        build: ./project-service
+        ports:
+            - "${PROJECT_PORT}:8080"
+        env_file:
+            ./project-service/.env
