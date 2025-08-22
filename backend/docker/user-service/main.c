@@ -46,7 +46,7 @@ int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key,
 
     if (key && value) {
         if (strcmp(key, "name") == 0) {
-            printf(value);
+            printf("%s", value);
             printf("\n");
 
             int suiseiseki = find_users(value, userstruct->users, userstruct->size, userstruct->number_of_results);
@@ -232,7 +232,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             cJSON* username_or_email = cJSON_GetObjectItem(json, "username_or_email");
             char role[10];
             if (!parse_credentials_from_json(json, role)) {
-                printf(role);
+                printf("%s", role);
                 char* jwt;
                 size_t jwt_length;
 

@@ -624,8 +624,7 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
             if (bson_iter_find(&iter, "role")) {
                 const char* found_role = bson_iter_utf8(&iter, NULL);
                 printf("Found user: %s\n", found_role);
-                strncpy(role, found_role, sizeof(role));
-                role[sizeof(role) - 1] = '\0';
+                strncpy(role, found_role, 10);
             }
             if (bson_iter_find(&iter, "active")) {
                 int active = bson_iter_int32(&iter);
@@ -663,8 +662,7 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
             if (bson_iter_find(&iter2, "role")) {
                 const char* found_role = bson_iter_utf8(&iter2, NULL);
                 printf("Found user: %s\n", found_role);
-                strncpy(role, found_role, sizeof(role));
-                role[sizeof(role) - 1] = '\0';
+                strncpy(role, found_role, 10);
             }
             if (bson_iter_find(&iter2, "active")) {
                 int active = bson_iter_int32(&iter2);
