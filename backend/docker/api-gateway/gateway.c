@@ -79,6 +79,19 @@ int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const 
     return MHD_YES;
 }
 
+char* load_file(const char* filename) {
+    FILE *f = fopen(filename, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    rewind(f);
+    char *buf = malloc(len + 1);
+    fread(buf, 1, len, f);
+    buf[len] = '\0';
+    fclose(f);
+    return buf;
+}
+
 static enum MHD_Result handle_request(void *cls,
                                       struct MHD_Connection *connection,
                                       const char *url,
@@ -87,6 +100,7 @@ static enum MHD_Result handle_request(void *cls,
                                       const char *upload_data,
                                       size_t *upload_data_size,
                                       void **con_cls) {
+
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -95,6 +109,14 @@ static enum MHD_Result handle_request(void *cls,
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return ret;
+    }
+
+    if (strcmp(url, "/demonstracija") == 0 && strcmp(method, "GET") == 0) {
+	const char *page = "<html><body><h1>HTTPS DEMONSTRACIJA</h1></body></html>";
+	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(page), (void *)page, MHD_RESPMEM_PERSISTENT);
+	int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+	MHD_destroy_response(response); 
+	return ret;
     }
     
     if (*con_cls == NULL) {
@@ -199,20 +221,40 @@ static enum MHD_Result handle_request(void *cls,
 }
 
 int main() {
+
+    char *cert = load_file("cert.pem");
+    char *key  = load_file("key.pem");
+
+    if (!cert || !key) {
+        fprintf(stderr, "Failed to load cert.pem or key.pem\n");
+        return 1;
+    }
+
     curl_global_init(CURL_GLOBAL_ALL);
 
-    struct MHD_Daemon *daemon;
-    daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, PORT, NULL, NULL,
-                              &handle_request, NULL, MHD_OPTION_END);
+    struct MHD_Daemon *daemon = MHD_start_daemon(
+        MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
+        PORT,
+        NULL, NULL,
+        &handle_request, NULL,
+        MHD_OPTION_HTTPS_MEM_CERT, cert,
+        MHD_OPTION_HTTPS_MEM_KEY, key,
+        MHD_OPTION_END);
+    
     if (!daemon) {
+        perror("MHD_start_daemon");
         curl_global_cleanup();
+        free(cert);
+        free(key);
         return 1;
     }
 
     printf("Transparent API Gateway listening on port %d...\n", PORT);
-    pause(); // Press Enter to stop
+    pause();
 
     MHD_stop_daemon(daemon);
     curl_global_cleanup();
+    free(cert);
+    free(key);
     return 0;
 }
