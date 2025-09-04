@@ -1,5 +1,5 @@
-To: golay48064@iminko.com
+To: 41yc2jtb17@jkotypc.com
 From: trello clone
 Subject: Test Email
 
-Vas aktivacioni kod: http://localhost:3000/activate?link=77312d0fc9ba2bc2f59aae84a938329cdf9a5063
+Vas aktivacioni kod: http://localhost:3000/activate?link=0b08e2942812c0e822f6169f5c4d06ab8127c922

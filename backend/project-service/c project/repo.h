@@ -6,7 +6,6 @@
 int addproject(Project* project);
 int repo();
 char* get_all_projects(void);
-// Add this new function declaration
 int update_project_members(const char* project_id, const char** members, int member_count);
 char* get_project_by_id(const char* project_id);
 

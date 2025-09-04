@@ -18,12 +18,23 @@ const AddTasks = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const role = Cookies.get('role');
         setUserRole(role);
+
+        // Get userId from JWT
+        const tokenCookie = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('token='));
+        if (tokenCookie) {
+          const token = tokenCookie.split('=')[1];
+          const decodedToken = jwtDecode(token);
+          setUserId(decodedToken.sub);
+        }
 
         const projectResponse = await fetch(`http://localhost:8081/projects/${projectId}`);
         const projectData = await projectResponse.json();
@@ -116,20 +127,17 @@ const AddTasks = () => {
     });
   };
 
-  const handleStatusChange = async (taskId, newStatus) => {
+  const handleStatusChange = async (taskId, newStatusString) => {
     try {
-      const response = await fetch(`http://localhost:8082/tasks/${taskId}/status`, {
+      await fetch(`http://localhost:8082/tasks/status/${taskId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatusString }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to update task status');
-      }
-
+      // Refetch tasks to update UI
       const tasksResponse = await fetch(`http://localhost:8082/tasks/project/${projectId}`);
       const tasksData = await tasksResponse.json();
       setTasks(tasksData);
@@ -143,9 +151,22 @@ const AddTasks = () => {
   // Define a mapping for status codes to strings
   const STATUS_MAP = {
     0: "pending",
-    1: "in progress",
+    1: "in_progress",
     2: "completed"
   };
+  const STATUS_LABELS = {
+    pending: "Pending",
+    in_progress: "In Progress",
+    completed: "Completed"
+  };
+  const STATUS_OPTIONS = [
+    { value: "pending", label: "Pending" },
+    { value: "in_progress", label: "In Progress" },
+    { value: "completed", label: "Completed" }
+  ];
+
+  // Helper to normalize MongoDB _id
+  const getTaskId = (task) => typeof task._id === 'object' && task._id.$oid ? task._id.$oid : task._id;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 py-12 px-4">
@@ -201,19 +222,22 @@ const AddTasks = () => {
                   <h4 className="text-xl font-semibold text-white mb-2">{task.name}</h4>
                   <p className="text-white/90 mb-2">{task.description}</p>
                   <div className="flex justify-between items-center">
-                    <div className="text-white/80">
-                      <span className="font-semibold">Status:</span> {STATUS_MAP[task.status]}
-                      {/* {userRole === 'USER' && (
+                    <div className="text-white/80 flex items-center">
+                      <span className="font-semibold">Status:</span> {" "}
+                      {((userId && task.members && task.members.includes(userId)) || (userRole === 'MANAGER' && userId && projectData && userId === projectData.moderator)) ? (
                         <select
-                          value={task.status}
-                          onChange={(e) => handleStatusChange(task._id, parseInt(e.target.value))}
-                          className="ml-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                          value={STATUS_MAP[task.status]}
+                          onChange={(e) => handleStatusChange(getTaskId(task), e.target.value)}
+                          className="ml-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent backdrop-blur-lg [&>option]:text-gray-900 [&>option]:bg-white"
+                          style={{ minWidth: 120 }}
                         >
-                          <option value={0}>Pending</option>
-                          <option value={1}>In Progress</option>
-                          <option value={2}>Completed</option>
+                          {STATUS_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
                         </select>
-                      )} */}
+                      ) : (
+                        <span>{STATUS_LABELS[STATUS_MAP[task.status]]}</span>
+                      )}
                     </div>
                     <div className="text-white/80">
                       <span className="font-semibold">Assigned to:</span>{' '}

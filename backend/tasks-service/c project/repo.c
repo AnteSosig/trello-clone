@@ -330,8 +330,6 @@ int update_task_status(const char* task_id, TaskStatus status) {
 }
 
 int validate_project_member(const char* project_id, const char* member_id) {
-    // This function would need to make a request to the projects service
-    // For now, returning true as a placeholder
     return 0;
 }
 

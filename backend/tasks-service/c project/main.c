@@ -18,6 +18,8 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
     const char* url, const char* method, const char* version,
     const char* upload_data, size_t* upload_data_size, void** con_cls) {
 
+    printf("Incoming request: %s %s\n", method, url);
+
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -120,7 +122,9 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
     }
 
     // Get tasks by project
-    if (strncmp(url, "/tasks/project/", 14) == 0 && strcmp(method, "GET") == 0) {
+    printf("DEBUG: Checking generic handler for URL: %s\n", url);
+    if (strncmp(url, "/tasks/project/", 14) == 0 && strcmp(method, "GET") == 0 && strstr(url, "/member/") == NULL) {
+        printf("Matched: /tasks/project/{project_id}\n");
         const char* project_id = url + 14;  // Skip "/tasks/project/"
         
         // Skip any leading forward slash
