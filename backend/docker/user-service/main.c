@@ -190,7 +190,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
     }
 
-    if (strcmp(url, "/login") == 0 && strcmp(method, "POST") == 0) {
+    if (strcmp(url, "/login") == 0 && strcmp(method, "GET") == 0) {
 
         printf("ZLAJAAAAA.\n");
 

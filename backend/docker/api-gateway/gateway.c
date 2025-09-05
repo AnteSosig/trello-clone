@@ -7,6 +7,11 @@
 #define TARGET_HOST "http://localhost:8081"
 #define PORT 8443
 
+struct ServiceAddressKeyValue {
+    char service[16];
+    int address;
+};
+
 struct MemoryStruct {
     char *memory;
     size_t size;
@@ -222,19 +227,67 @@ static enum MHD_Result handle_request(void *cls,
 
 int main() {
 
+    const char *var_name = "SERVICES";
+    char *services_env = getenv(var_name);
+    if (services_env) {
+	char *services = malloc(strlen(services_env) + 1);
+	if (!services) {
+	    return -1;
+	}
+	strcpy(services, services_env);
+	printf("Services: %s\n", services);
+	
+	int service_count = 1;
+	for (int i = 0; i < strlen(services); ++i) {
+	    if (services[i] == ':') {
+		++service_count;
+	    }
+	}
+	char *service_list[service_count];
+	for (int i = 0; i < service_count; ++i) {
+	    service_list[i] = malloc(strlen(services) + 1);
+	    memset(service_list[i], 0, strlen(services) + 1);
+	}
+	int fill_count = 0;
+	int list_char_count = 0;
+	for (int i = 0; i < service_count; ++i) {
+	    while (fill_count < strlen(services)) {
+		printf("%c\n", services[fill_count]);
+		if (services[fill_count] == ':') {
+		    ++fill_count;
+		    list_char_count = 0;
+		    break;
+		}
+		service_list[i][list_char_count] = services[fill_count];
+		++fill_count;
+		++list_char_count;
+	    }
+	}
+	for (int i = 0; i < service_count; ++i) {
+	    printf("kesten pire: %szlaja\n", service_list[i]);
+	}
+    } 
+    else {
+	fprintf(stderr, "Cannot find services\n");
+	return 1;
+    }
+
     char *cert = load_file("cert.pem");
     char *key  = load_file("key.pem");
 
     if (!cert || !key) {
         fprintf(stderr, "Failed to load cert.pem or key.pem\n");
-        return 1;
+        return 2;
     }
 
     curl_global_init(CURL_GLOBAL_ALL);
 
+    char* port_env = getenv("PORT");
+    int port = port_env ? atoi(port_env) : PORT;
+
     struct MHD_Daemon *daemon = MHD_start_daemon(
         MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
-        PORT,
+        port,
         NULL, NULL,
         &handle_request, NULL,
         MHD_OPTION_HTTPS_MEM_CERT, cert,
@@ -246,7 +299,7 @@ int main() {
         curl_global_cleanup();
         free(cert);
         free(key);
-        return 1;
+        return 3;
     }
 
     printf("Transparent API Gateway listening on port %d...\n", PORT);

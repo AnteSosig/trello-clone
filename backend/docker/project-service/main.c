@@ -8,7 +8,7 @@
 #include "algs.h"
 #include "decode.h"
 
-#define PORT 8080
+#define PORT 8081
 
 // Structure to store incoming JSON data
 struct ConnectionInfo {
