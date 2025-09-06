@@ -4,11 +4,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#define TARGET_HOST "http://localhost:8081"
+#define TARGET_HOST "https://localhost"
 #define PORT 8443
 
 struct ServiceAddressKeyValue {
-    char service[16];
+    char *service;
     int address;
 };
 
@@ -229,7 +229,10 @@ int main() {
 
     const char *var_name = "SERVICES";
     char *services_env = getenv(var_name);
-    if (services_env) {
+    if (!services_env) {
+        fprintf(stderr, "Cannot find services\n");
+        return 1;
+    }
 	char *services = malloc(strlen(services_env) + 1);
 	if (!services) {
 	    return -1;
@@ -252,25 +255,50 @@ int main() {
 	int list_char_count = 0;
 	for (int i = 0; i < service_count; ++i) {
 	    while (fill_count < strlen(services)) {
-		printf("%c\n", services[fill_count]);
-		if (services[fill_count] == ':') {
-		    ++fill_count;
-		    list_char_count = 0;
-		    break;
-		}
-		service_list[i][list_char_count] = services[fill_count];
-		++fill_count;
-		++list_char_count;
+            printf("%c\n", services[fill_count]);
+            if (services[fill_count] == ':') {
+                ++fill_count;
+                list_char_count = 0;
+                break;
+            }
+            service_list[i][list_char_count] = services[fill_count];
+            ++fill_count;
+            ++list_char_count;
 	    }
 	}
 	for (int i = 0; i < service_count; ++i) {
 	    printf("kesten pire: %szlaja\n", service_list[i]);
 	}
-    } 
-    else {
-	fprintf(stderr, "Cannot find services\n");
-	return 1;
-    }
+    free(services);
+
+    struct ServiceAddressKeyValue *routing_table[service_count];
+	for (int i = 0; i < service_count; ++i) {
+        int service_name_len = strlen(service_list[i]);
+        char suiseiseki[service_name_len + 6];
+        snprintf(suiseiseki, service_name_len + 6, "%s%s", service_list[i], "_PORT");
+        printf("%s\n", suiseiseki);
+        char *service = getenv(suiseiseki);
+        if (!service) {
+            continue;
+        }
+        int number;
+        int result = sscanf(service, "%d", &number);
+        if (!number) {
+            continue;
+        }
+
+	    routing_table[i] = malloc(sizeof(struct ServiceAddressKeyValue));
+        routing_table[i]->service = service_list[i];
+        routing_table[i]->address = number;
+	}
+	for (int i = 0; i < service_count; ++i) {
+        if (routing_table[i]->service) {
+	        printf("krompir pire: %szlaja\n", routing_table[i]->service);
+        }
+        if (routing_table[i]->address) {
+            printf("krompir pire: %dzlaja\n", routing_table[i]->address);
+        }
+	}
 
     char *cert = load_file("cert.pem");
     char *key  = load_file("key.pem");
@@ -283,11 +311,16 @@ int main() {
     curl_global_init(CURL_GLOBAL_ALL);
 
     char* port_env = getenv("PORT");
-    int port = port_env ? atoi(port_env) : PORT;
+    int gateway_port;
+    int result = sscanf(port_env, "%d", &gateway_port);
+    if (!gateway_port) {
+        fprintf(stderr, "No port given\n");
+        gateway_port = PORT;
+    }
 
     struct MHD_Daemon *daemon = MHD_start_daemon(
         MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
-        port,
+        gateway_port,
         NULL, NULL,
         &handle_request, NULL,
         MHD_OPTION_HTTPS_MEM_CERT, cert,
@@ -299,6 +332,8 @@ int main() {
         curl_global_cleanup();
         free(cert);
         free(key);
+        free(service_list);
+        free(routing_table);
         return 3;
     }
 
@@ -309,5 +344,7 @@ int main() {
     curl_global_cleanup();
     free(cert);
     free(key);
+    free(service_list);
+    free(routing_table);
     return 0;
 }
