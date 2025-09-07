@@ -4,8 +4,10 @@
 #include <string.h>
 #include <stdio.h>
 
-#define TARGET_HOST "https://localhost"
+#define TARGET_HOST "http://localhost"
 #define PORT 8443
+
+int SERVICE_COUNT;
 
 struct ServiceAddressKeyValue {
     char *service;
@@ -117,11 +119,11 @@ static enum MHD_Result handle_request(void *cls,
     }
 
     if (strcmp(url, "/demonstracija") == 0 && strcmp(method, "GET") == 0) {
-	const char *page = "<html><body><h1>HTTPS DEMONSTRACIJA</h1></body></html>";
-	struct MHD_Response *response = MHD_create_response_from_buffer(strlen(page), (void *)page, MHD_RESPMEM_PERSISTENT);
-	int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-	MHD_destroy_response(response); 
-	return ret;
+        const char *page = "<html><body><h1>HTTPS DEMONSTRACIJA</h1></body></html>";
+        struct MHD_Response *response = MHD_create_response_from_buffer(strlen(page), (void *)page, MHD_RESPMEM_PERSISTENT);
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response); 
+        return ret;
     }
     
     if (*con_cls == NULL) {
@@ -157,7 +159,51 @@ static enum MHD_Result handle_request(void *cls,
 
     // Build target URL
     char target_url[1512];
-    snprintf(target_url, sizeof(target_url), "%s%s%s", TARGET_HOST, url, query);
+    int url_len = strlen(url);
+    int service_name_len = 0;
+    for (int i = 1; i < url_len; ++i) {
+        if (url[i] == '/') {
+            break;
+        }
+        ++service_name_len;
+    }
+    if (service_name_len == 0) {
+        const char* not_found = "404 - Not Found";
+        struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found), (void*)not_found, MHD_RESPMEM_PERSISTENT);
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        int ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
+        MHD_destroy_response(response);
+        return ret;
+    }
+    char service_name[service_name_len + 1];
+    for (int i = 0; i < service_name_len; ++i) {
+        service_name[i] = url[i + 1];
+    }
+    service_name[service_name_len] = '\0';
+
+    struct ServiceAddressKeyValue **routing_table = (struct ServiceAddressKeyValue **)cls;
+    int port;
+    for (int i = 0; i < SERVICE_COUNT; ++i) {
+        if (strcmp(routing_table[i]->service, service_name) == 0) {
+            port = routing_table[i]->address;
+        }
+    }
+    if (!port) {
+        const char* not_found = "404 - Not Found";
+        struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found), (void*)not_found, MHD_RESPMEM_PERSISTENT);
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        int ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
+        MHD_destroy_response(response);
+        return ret;
+    }
+    char endpoint[url_len - service_name_len + 1];
+    for (int i = 0; i < url_len - service_name_len; ++i) {
+        endpoint[i] = url[1 + service_name_len + i];
+    }
+    endpoint[url_len - service_name_len] = '\0';
+    printf("endpointovic %s\n", endpoint);
+
+    snprintf(target_url, sizeof(target_url), "%s:%d%s%s", TARGET_HOST, port, endpoint, query);
     printf("query tew zene: %s\n", query);
     printf("nigger url: %s\n", target_url);
     printf("zlaja kakimic\n");
@@ -209,7 +255,7 @@ static enum MHD_Result handle_request(void *cls,
         if (colon) {
             *colon = '\0';
             const char *header_name = h->data;
-            const char *header_value = colon + 2; // skip ": "
+            const char *header_value = colon + 2; // skip ":"
             MHD_add_response_header(response, header_name, header_value);
         }
         h = h->next;
@@ -299,6 +345,7 @@ int main() {
             printf("krompir pire: %dzlaja\n", routing_table[i]->address);
         }
 	}
+    SERVICE_COUNT = service_count;
 
     char *cert = load_file("cert.pem");
     char *key  = load_file("key.pem");
@@ -322,7 +369,7 @@ int main() {
         MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
         gateway_port,
         NULL, NULL,
-        &handle_request, NULL,
+        &handle_request, routing_table, 30,
         MHD_OPTION_HTTPS_MEM_CERT, cert,
         MHD_OPTION_HTTPS_MEM_KEY, key,
         MHD_OPTION_END);
