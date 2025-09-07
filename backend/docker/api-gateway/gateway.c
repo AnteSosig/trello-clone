@@ -359,17 +359,18 @@ int main() {
 
     char* port_env = getenv("PORT");
     int gateway_port;
-    int result = sscanf(port_env, "%d", &gateway_port);
-    if (!gateway_port) {
+    if (!port_env) {
         fprintf(stderr, "No port given\n");
         gateway_port = PORT;
+    } else {
+        int result = sscanf(port_env, "%d", &gateway_port);
     }
 
     struct MHD_Daemon *daemon = MHD_start_daemon(
         MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
         gateway_port,
         NULL, NULL,
-        &handle_request, routing_table, 30,
+        &handle_request, routing_table,
         MHD_OPTION_HTTPS_MEM_CERT, cert,
         MHD_OPTION_HTTPS_MEM_KEY, key,
         MHD_OPTION_END);
@@ -384,7 +385,7 @@ int main() {
         return 3;
     }
 
-    printf("Transparent API Gateway listening on port %d...\n", PORT);
+    printf("Transparent API Gateway listening on port %d...\n", gateway_port);
     pause();
 
     MHD_stop_daemon(daemon);
