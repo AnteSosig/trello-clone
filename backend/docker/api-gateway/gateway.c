@@ -180,15 +180,25 @@ static enum MHD_Result handle_request(void *cls,
         service_name[i] = url[i + 1];
     }
     service_name[service_name_len] = '\0';
+    printf("pls %s\n", service_name);
 
     struct ServiceAddressKeyValue **routing_table = (struct ServiceAddressKeyValue **)cls;
-    int port;
+    for (int i = 0; i < SERVICE_COUNT; ++i) {
+        if (routing_table[i]->service) {
+	        printf("kakam bukvalno: %sdzaja\n", routing_table[i]->service);
+        }
+        if (routing_table[i]->address) {
+            printf("kakam bukvalno: %ddzaja\n", routing_table[i]->address);
+        }
+	}
+    int port = -1;
     for (int i = 0; i < SERVICE_COUNT; ++i) {
         if (strcmp(routing_table[i]->service, service_name) == 0) {
             port = routing_table[i]->address;
+            break;
         }
     }
-    if (!port) {
+    if (port == -1) {
         const char* not_found = "404 - Not Found";
         struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found), (void*)not_found, MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -196,6 +206,7 @@ static enum MHD_Result handle_request(void *cls,
         MHD_destroy_response(response);
         return ret;
     }
+    printf("target service port pls: %d\n", port);
     char endpoint[url_len - service_name_len + 1];
     for (int i = 0; i < url_len - service_name_len; ++i) {
         endpoint[i] = url[1 + service_name_len + i];
@@ -322,20 +333,29 @@ int main() {
         int service_name_len = strlen(service_list[i]);
         char suiseiseki[service_name_len + 6];
         snprintf(suiseiseki, service_name_len + 6, "%s%s", service_list[i], "_PORT");
-        printf("%s\n", suiseiseki);
+        printf("sui: %s\n", suiseiseki);
+
         char *service = getenv(suiseiseki);
         if (!service) {
             continue;
         }
+        printf("%s\n", service);
         int number;
         int result = sscanf(service, "%d", &number);
-        if (!number) {
+        if (result != 1) {
             continue;
         }
 
 	    routing_table[i] = malloc(sizeof(struct ServiceAddressKeyValue));
+        for (int j = 0; service_list[i][j] != '\0'; j++) {
+            if (service_list[i][j] >= 'A' && service_list[i][j] <= 'Z') {
+                service_list[i][j] = service_list[i][j] + ('a' - 'A');
+            }
+        }
         routing_table[i]->service = service_list[i];
+        printf("nigerski krek:%s\n", service_list[i]);
         routing_table[i]->address = number;
+        printf("nigerski krek:%d\n", number);
 	}
 	for (int i = 0; i < service_count; ++i) {
         if (routing_table[i]->service) {
