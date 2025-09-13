@@ -8,8 +8,6 @@ services:
             PROJECT_PORT: ${PROJECT_PORT}
         ports:
             - "${GATEWAY_PORT}:${GATEWAY_PORT}"
-        env_file:
-            ./api-gateway/.env
 
     user-service:
         build: ./user-service
@@ -17,10 +15,10 @@ services:
             PORT: ${USER_PORT}
             HMAC_KEY: ${HMAC_KEY}
             DBURI: ${DBURI}
+            MAIL_FROM: ${MAIL_FROM}
+            PASSKEY: ${PASSKEY}
         ports:
             - "${USER_PORT}:${USER_PORT}"
-        env_file:
-            ./user-service/.env
 
     project-service:
         build: ./project-service
@@ -30,8 +28,6 @@ services:
             DBURI: ${DBURI}
         ports:
             - "${PROJECT_PORT}:${PROJECT_PORT}"
-        env_file:
-            ./project-service/.env
 
     mongodb:
         image: mongo:7.0

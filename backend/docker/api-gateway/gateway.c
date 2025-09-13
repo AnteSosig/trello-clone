@@ -245,7 +245,7 @@ static enum MHD_Result handle_request(void *cls,
     if (strcmp(method, "POST") == 0) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, conn_info->json_data);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, conn_info->json_size);
-        printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%s", conn_info->json_data);
+        printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%s\n", conn_info->json_data);
     }
     printf("le preform request pls\n");
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);

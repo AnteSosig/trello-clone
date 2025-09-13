@@ -217,12 +217,20 @@ int emailto(char email[], FILE* payload_file) {
     if (curl) {
         curl_easy_setopt(curl, CURLOPT_URL, "smtp://smtp.gmail.com:587");
         curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
-        //hardcoded for now
-        curl_easy_setopt(curl, CURLOPT_USERNAME, "nikola.birclin@gmail.com");
-        //hardcoded for now :(
-        curl_easy_setopt(curl, CURLOPT_PASSWORD, "rjxx axrp qkye vsee");
-        //hardcoded for now
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, "nikola.birclin@gmail.com");
+
+        const char *var_name = "MAIL_FROM";
+        char *mail_from = getenv(var_name);
+        const char *var_name1 = "PASSKEY";
+        char *passkey = getenv(var_name1);
+
+        if(!mail_from || !passkey) {
+            printf("Failed to find mailing credentials");
+            return 3;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_USERNAME, mail_from);
+        curl_easy_setopt(curl, CURLOPT_PASSWORD, passkey);
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, mail_from);
 
         printf("nagy a pusztulas.\n");
 

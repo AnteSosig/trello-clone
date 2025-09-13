@@ -123,7 +123,8 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             User user;
             if (parse_user_from_json(json, &user) == 0) {
-                if (adduser(&user) == 0) {
+                int add_user_code = adduser(&user);
+                if (add_user_code == 0) {
                     const char* response_str = "User data received";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
                         (void*)response_str, MHD_RESPMEM_PERSISTENT);
@@ -133,9 +134,9 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     printf("KKKKKKKKKKKKK.\n");
                 }
                 else {
-                    const char* error_response = "User not added";
-                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
-                        (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                    const char* response_str = "User not added";
+                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
+                        (void*)response_str, MHD_RESPMEM_PERSISTENT);
                     MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
                     int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
                     MHD_destroy_response(response);
