@@ -17,8 +17,9 @@ FILE* log;
 Repository* New(FILE* logger) {
 
     //hardcoded for now
-    const char* dburi = "mongodb://localhost:27017/";
-
+    const char *var_name = "DBURI";
+    char *dburi = getenv(var_name);
+    printf("Bruhimic moram priznati");
 
     if (dburi == NULL) {
         fprintf(logger, "Error: MONGO_DB_URI environment variable is not set\n");
@@ -332,7 +333,7 @@ int adduser(User *user) {
     if (payload_file) {
         fprintf(payload_file, "To: %s\r\n"
             "From: trello clone\r\n"
-            "Subject: Test Email\r\n"
+            "Subject: Email Verification\r\n"
             "\r\n"
             "Vas aktivacioni kod: http://localhost:3000/activate?link=%s\r\n", user->email, (const char*)activation_link);
         fclose(payload_file);

@@ -192,9 +192,11 @@ static enum MHD_Result handle_request(void *cls,
         }
 	}
     int port = -1;
+    char *service_first_char;
     for (int i = 0; i < SERVICE_COUNT; ++i) {
         if (strcmp(routing_table[i]->service, service_name) == 0) {
             port = routing_table[i]->address;
+            service_first_char = &routing_table[i]->service[0];
             break;
         }
     }
@@ -214,7 +216,7 @@ static enum MHD_Result handle_request(void *cls,
     endpoint[url_len - service_name_len] = '\0';
     printf("endpointovic %s\n", endpoint);
 
-    snprintf(target_url, sizeof(target_url), "%s:%d%s%s", TARGET_HOST, port, endpoint, query);
+    snprintf(target_url, sizeof(target_url), "%s-service:%d%s%s", service_first_char, port, endpoint, query);
     printf("query tew zene: %s\n", query);
     printf("nigger url: %s\n", target_url);
     printf("zlaja kakimic\n");
@@ -243,6 +245,7 @@ static enum MHD_Result handle_request(void *cls,
     if (strcmp(method, "POST") == 0) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, conn_info->json_data);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, conn_info->json_size);
+        printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%s", conn_info->json_data);
     }
     printf("le preform request pls\n");
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
@@ -393,6 +396,7 @@ int main() {
         &handle_request, routing_table,
         MHD_OPTION_HTTPS_MEM_CERT, cert,
         MHD_OPTION_HTTPS_MEM_KEY, key,
+        MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int)30,
         MHD_OPTION_END);
     
     if (!daemon) {
@@ -400,8 +404,12 @@ int main() {
         curl_global_cleanup();
         free(cert);
         free(key);
-        free(service_list);
-        free(routing_table);
+        for (int i = 0; i < SERVICE_COUNT; ++i) {
+            free(service_list[i]);
+        }
+        for (int i = 0; i < SERVICE_COUNT; ++i) {
+            free(routing_table[i]);
+        }
         return 3;
     }
 
@@ -412,7 +420,11 @@ int main() {
     curl_global_cleanup();
     free(cert);
     free(key);
-    free(service_list);
-    free(routing_table);
+    for (int i = 0; i < SERVICE_COUNT; ++i) {
+        free(service_list[i]);
+    }
+    for (int i = 0; i < SERVICE_COUNT; ++i) {
+        free(routing_table[i]);
+    }
     return 0;
 }

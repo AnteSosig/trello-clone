@@ -30,7 +30,7 @@ const Register = () => {
         role: formData.role
       };
 
-      const response = await axios.post('http://localhost:8080/newuser', userPayload, {
+      const response = await axios.post('https://localhost:8443/user/newuser', userPayload, {
         headers: {
           'Content-Type': 'application/json'
         }

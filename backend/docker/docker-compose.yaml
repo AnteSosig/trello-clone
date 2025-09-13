@@ -15,6 +15,8 @@ services:
         build: ./user-service
         environment:
             PORT: ${USER_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            DBURI: ${DBURI}
         ports:
             - "${USER_PORT}:${USER_PORT}"
         env_file:
@@ -24,7 +26,21 @@ services:
         build: ./project-service
         environment:
             PORT: ${PROJECT_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            DBURI: ${DBURI}
         ports:
             - "${PROJECT_PORT}:${PROJECT_PORT}"
         env_file:
             ./project-service/.env
+
+    mongodb:
+        image: mongo:7.0
+        ports:
+            - "27017:27017"
+        volumes:
+            # - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+            - mongo_data:/data/db
+
+volumes:
+    mongo_data:
+        driver: local

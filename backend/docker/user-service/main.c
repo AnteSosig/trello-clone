@@ -7,6 +7,7 @@
 #include "repo.h"
 #include "algs.h"
 #include "encode.h"
+#include "decode.h"
 
 #define PORT 8080
 
@@ -190,7 +191,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
     }
 
-    if (strcmp(url, "/login") == 0 && strcmp(method, "GET") == 0) {
+    if (strcmp(url, "/login") == 0 && strcmp(method, "POST") == 0) {
 
         printf("ZLAJAAAAA.\n");
 
@@ -233,6 +234,10 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             char role[10];
             if (!parse_credentials_from_json(json, role)) {
                 printf("%s", role);
+
+                const char *var_name = "HMAC_KEY";
+                char *hmac_key = getenv(var_name);
+
                 char* jwt;
                 size_t jwt_length;
 
@@ -242,14 +247,14 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 params.alg = L8W8JWT_ALG_HS512;
 
                 params.sub = username_or_email->valuestring;
-                params.iss = "Trello clone";
+                params.iss = "Trello Clone";
                 params.aud = role;
 
                 params.iat = l8w8jwt_time(NULL);
                 params.exp = l8w8jwt_time(NULL) + 600; /* Set to expire after 10 minutes (600 seconds). */
 
                 //hardcoded for now
-                params.secret_key = (unsigned char*)"YoUR sUpEr S3krEt 1337 HMAC kEy HeRE";
+                params.secret_key = (unsigned char*)hmac_key;
                 params.secret_key_length = strlen(params.secret_key);
 
                 params.out = &jwt;
@@ -349,6 +354,66 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         return ret;
     }
 
+    if (strcmp(url, "/changepassword") == 0 && strcmp(method, "GET") == 0) {
+
+        const char *auth = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_AUTHORIZATION);
+
+        if (!auth) {
+            const char* not_found = "403 - Forbidden";
+            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                (void*)not_found, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        const char *var_name = "HMAC_KEY";
+        char *hmac_key = getenv(var_name);
+
+        struct l8w8jwt_decoding_params params;
+        l8w8jwt_decoding_params_init(&params);
+
+        params.alg = L8W8JWT_ALG_HS512;
+
+        params.jwt = auth;
+        params.jwt_length = strlen(auth);
+
+        params.verification_key = (unsigned char*)hmac_key;
+        params.verification_key_length = strlen(hmac_key);
+
+        params.validate_iss = "Trello Clone"; 
+
+        params.validate_exp = 1; 
+        params.exp_tolerance_seconds = 60;
+
+        params.validate_iat = 1;
+        params.iat_tolerance_seconds = 60;
+
+        enum l8w8jwt_validation_result validation_result;
+
+        int decode_result = l8w8jwt_decode(&params, &validation_result, NULL, NULL);
+
+        if (decode_result == L8W8JWT_SUCCESS && validation_result == L8W8JWT_VALID) 
+        {
+            printf("\n Example HS512 token validation successful! \n");
+        }
+        else
+        {
+            printf("\n Example HS512 token validation failed! \n");
+
+            const char* not_found = "403 - Forbidden";
+            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                (void*)not_found, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+
+    }
+
     // Handle other routes or return 404
     const char* not_found = "404 - Not Found";
     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
@@ -360,6 +425,14 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 }
 
 int main() {
+
+    const char *var_name = "HMAC_KEY";
+    char *hmac_key = getenv(var_name);
+    if (!hmac_key) {
+        fprintf(stderr, "Cannot find HMAC key\n");
+        return 1;
+    }
+
     struct MHD_Daemon* daemon;
 
     // Set the PORT from environment variable, fallback to default PORT 8080
