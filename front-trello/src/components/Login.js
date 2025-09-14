@@ -15,7 +15,7 @@ const LoginForm = () => {
     console.log('Attempting login with:', { username_or_email, password });
 
     try {
-      const response = await fetch('http://localhost:8080/login', {
+      const response = await fetch('https://localhost:8443/user/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -750,6 +750,13 @@ int find_users(const char* name, User users[], int size, int* number_of_results)
     return 0;
 }
 
+int changepassword(const char* username, const char* new_password, const char* old_password) {
+
+
+
+    return 0;
+}
+
 int repo() {
 
     log = fopen("log.txt", "w");

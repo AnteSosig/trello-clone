@@ -8,5 +8,6 @@ int repo();
 int check_activation(const char* link);
 int parse_credentials_from_json(const cJSON* json, char role[]);
 int find_users(const char* name, User users[], int size, int* number_of_results);
+int changepassword(const char* username, const char* new_password, const char* old_password);
 
 #endif

@@ -327,7 +327,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             const char* username = foundusers.users[i].username;
             const char* first_name = foundusers.users[i].first_name;
             const char* last_name = foundusers.users[i].last_name;
-            char user[255];
+            char user[1024];
             snprintf(user, sizeof(user), "{\"username\": \"%s\", \"first_name\": \"%s\", \"last_name\": \"%s\"},", username, first_name, last_name);
             int userlen = strlen(user);
             for (int j = 0; j < userlen; ++j) {
@@ -355,64 +355,139 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         return ret;
     }
 
-    if (strcmp(url, "/changepassword") == 0 && strcmp(method, "GET") == 0) {
+    if (strcmp(url, "/changepassword") == 0 && strcmp(method, "POST") == 0) {
 
-        const char *auth = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_AUTHORIZATION);
+        printf("ZLAJAAAAA.\n");
 
-        if (!auth) {
-            const char* not_found = "403 - Forbidden";
-            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
-                (void*)not_found, MHD_RESPMEM_PERSISTENT);
-            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-            int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
-            MHD_destroy_response(response);
-            return ret;
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
         }
 
-        const char *var_name = "HMAC_KEY";
-        char *hmac_key = getenv(var_name);
+        printf("KAKIMIIIICS.\n");
 
-        struct l8w8jwt_decoding_params params;
-        l8w8jwt_decoding_params_init(&params);
-
-        params.alg = L8W8JWT_ALG_HS512;
-
-        params.jwt = auth;
-        params.jwt_length = strlen(auth);
-
-        params.verification_key = (unsigned char*)hmac_key;
-        params.verification_key_length = strlen(hmac_key);
-
-        params.validate_iss = "Trello Clone"; 
-
-        params.validate_exp = 1; 
-        params.exp_tolerance_seconds = 60;
-
-        params.validate_iat = 1;
-        params.iat_tolerance_seconds = 60;
-
-        enum l8w8jwt_validation_result validation_result;
-
-        int decode_result = l8w8jwt_decode(&params, &validation_result, NULL, NULL);
-
-        if (decode_result == L8W8JWT_SUCCESS && validation_result == L8W8JWT_VALID) 
-        {
-            printf("\n Example HS512 token validation successful! \n");
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+        // If there's upload data, accumulate it
+        if (*upload_data_size > 0) {
+            // Reallocate memory to store incoming data
+            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
+            *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
+            return MHD_YES;
         }
-        else
-        {
-            printf("\n Example HS512 token validation failed! \n");
+        else {
+            // All data received, process the JSON
+            cJSON* json = cJSON_Parse(conn_info->json_data);
+            if (json == NULL) {
+                const char* error_response = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
+                return MHD_YES;
+            }
 
-            const char* not_found = "403 - Forbidden";
-            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
-                (void*)not_found, MHD_RESPMEM_PERSISTENT);
-            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-            int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
-            MHD_destroy_response(response);
-            return ret;
+            const char *auth = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_AUTHORIZATION);
+
+            if (!auth) {
+                const char* not_found = "403 - Forbidden";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            const char *var_name = "HMAC_KEY";
+            char *hmac_key = getenv(var_name);
+            printf("KREK NIGERSKI\n");
+
+            struct l8w8jwt_decoding_params params;
+            l8w8jwt_decoding_params_init(&params);
+
+            params.alg = L8W8JWT_ALG_HS512;
+
+            params.jwt = auth;
+            params.jwt_length = strlen(auth);
+
+            params.verification_key = (unsigned char*)hmac_key;
+            params.verification_key_length = strlen(hmac_key);
+
+            params.validate_iss = "Trello Clone"; 
+            printf("KREK CAMUSKI\n");
+
+            params.validate_exp = 1; 
+            params.exp_tolerance_seconds = 60;
+
+            params.validate_iat = 1;
+            params.iat_tolerance_seconds = 60;
+
+            enum l8w8jwt_validation_result validation_result;
+
+            struct l8w8jwt_claim* claims = NULL;
+            size_t claims_len = 0;
+
+            printf("KREK NIGERSKI\n");
+
+            int decode_result = l8w8jwt_decode(&params, &validation_result, &claims, &claims_len);
+            printf("decode_result=%d, validation_result=%d, claims_len=%zu\n", decode_result, validation_result, claims_len);
+            printf("KREK CRNI\n");
+
+            for (size_t i = 0; i < claims_len; ++i) {
+                printf("Claim %zu: %.*s = %.*s\n", i,
+                (int)claims[i].key_length, claims[i].key,
+                (int)claims[i].value_length, claims[i].value);
+            }
+
+            if (decode_result == L8W8JWT_SUCCESS && validation_result == L8W8JWT_VALID) 
+            {
+                printf("\n Example HS512 token validation successful! \n");
+            }
+            else
+            {
+                printf("\n Example HS512 token validation failed! \n");
+
+                const char* not_found = "403 - Forbidden";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            cJSON* new_password = cJSON_GetObjectItem(json, "new_password");
+            cJSON* old_password = cJSON_GetObjectItem(json, "old_password");
+            if (!cJSON_IsString(new_password) || !cJSON_IsString(old_password)) {
+                const char* not_found = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            int password_change_code = changepassword("nigger", new_password->valuestring, old_password->valuestring);
+            if (password_change_code == 0) {
+                const char* not_found = "NIGGEEERR";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
         }
-
-
     }
 
     // Handle other routes or return 404
