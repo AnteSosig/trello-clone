@@ -16,10 +16,9 @@ FILE* log;
 
 Repository* New(FILE* logger) {
 
-    //hardcoded for now
     const char *var_name = "DBURI";
     char *dburi = getenv(var_name);
-    printf("Bruhimic moram priznati");
+    printf("Bruhimic moram priznati\n");
 
     if (dburi == NULL) {
         fprintf(logger, "Error: MONGO_DB_URI environment variable is not set\n");
@@ -611,6 +610,7 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
     password_hash(password->valuestring, hashed_password);
 
     Repository* repo = New(log);
+    printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
     const char* db_name = "users";
     const char* collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
@@ -750,11 +750,73 @@ int find_users(const char* name, User users[], int size, int* number_of_results)
     return 0;
 }
 
-int changepassword(const char* username, const char* new_password, const char* old_password) {
+int changepassword(const char* username_or_email, const char* new_password, const char* old_password) {
 
+    printf("Krekeri: %s\n%s\n%s\n", username_or_email, new_password, old_password);
+    Repository *repo = New(log); 
+    printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    printf("Changing niggers...\n");
+    const char *db_name = "users";
+    printf("Changing faggots...\n");
+    const char *collection_name = "users";
+    printf("Changing pajeets...\n");
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Changing password...\n");
 
+    bson_t* query = BCON_NEW(
+        "$or", "[",
+        "{", "username", BCON_UTF8(username_or_email), "}",
+        "{", "email", BCON_UTF8(username_or_email), "}",
+        "]"
+    );
 
-    return 0;
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t *doc;
+    if (mongoc_cursor_next(cursor, &doc)) {
+
+        bson_iter_t iter;
+        if (bson_iter_init_find(&iter, doc, "password") && BSON_ITER_HOLDS_UTF8(&iter)) {
+            const char *stored_password = bson_iter_utf8(&iter, NULL);
+            char hashed_old_password[41] = {0};
+            password_hash(old_password, (char*)hashed_old_password);
+
+            if (strcmp(stored_password, hashed_old_password) != 0) {
+                printf("Password mismatch\n");
+                bson_destroy(query);
+                mongoc_cursor_destroy(cursor);
+                Cleanup(repo);
+                return 1;
+            }
+            char hashed_new_password[41] = {0};
+            password_hash(new_password, (char*)hashed_new_password);
+            bson_t *update = BCON_NEW(
+                "$set", "{",
+                    "password", BCON_UTF8(hashed_new_password),
+                "}"
+            );
+            bson_error_t error;
+            if (!mongoc_collection_update_one(repo->collection, query, update, NULL, NULL, &error)) {
+                fprintf(stderr, "Update failed: %s\n", error.message);
+                bson_destroy(update);
+                bson_destroy(query);
+                mongoc_cursor_destroy(cursor);
+                Cleanup(repo);
+                return 2;
+            }
+
+            bson_destroy(update);
+            bson_destroy(query);
+            mongoc_cursor_destroy(cursor);
+            Cleanup(repo);
+            return 0;
+        }
+    }
+
+    printf("Iterating over cursor failed\n");
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+    Cleanup(repo);
+    return 3;
 }
 
 int repo() {

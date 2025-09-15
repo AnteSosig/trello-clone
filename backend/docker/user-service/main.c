@@ -254,7 +254,6 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 params.iat = l8w8jwt_time(NULL);
                 params.exp = l8w8jwt_time(NULL) + 600; /* Set to expire after 10 minutes (600 seconds). */
 
-                //hardcoded for now
                 params.secret_key = (unsigned char*)hmac_key;
                 params.secret_key_length = strlen(params.secret_key);
 
@@ -441,19 +440,24 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             printf("decode_result=%d, validation_result=%d, claims_len=%zu\n", decode_result, validation_result, claims_len);
             printf("KREK CRNI\n");
 
-            for (size_t i = 0; i < claims_len; ++i) {
-                printf("Claim %zu: %.*s = %.*s\n", i,
-                (int)claims[i].key_length, claims[i].key,
-                (int)claims[i].value_length, claims[i].value);
-            }
-
             if (decode_result == L8W8JWT_SUCCESS && validation_result == L8W8JWT_VALID) 
             {
                 printf("\n Example HS512 token validation successful! \n");
+
+                for (size_t i = 0; i < claims_len; ++i) {
+                    printf("Claim %zu: %.*s = %.*s\n", i,
+                    (int)claims[i].key_length, claims[i].key,
+                    (int)claims[i].value_length, claims[i].value);
+                }
             }
             else
             {
                 printf("\n Example HS512 token validation failed! \n");
+                for (size_t i = 0; i < claims_len; ++i) {
+                    free(claims[i].key);
+                    free(claims[i].value);
+                }
+                free(claims);
 
                 const char* not_found = "403 - Forbidden";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
@@ -467,6 +471,12 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             cJSON* new_password = cJSON_GetObjectItem(json, "new_password");
             cJSON* old_password = cJSON_GetObjectItem(json, "old_password");
             if (!cJSON_IsString(new_password) || !cJSON_IsString(old_password)) {
+                for (size_t i = 0; i < claims_len; ++i) {
+                    free(claims[i].key);
+                    free(claims[i].value);
+                }
+                free(claims);
+
                 const char* not_found = "Invalid JSON format";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
                     (void*)not_found, MHD_RESPMEM_PERSISTENT);
@@ -476,9 +486,38 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 return ret;
             }
 
-            int password_change_code = changepassword("nigger", new_password->valuestring, old_password->valuestring);
+            const char *claim_ptr;
+            for (size_t i = 0; i < claims_len; ++i) {
+                if (strcmp(claims[i].key, "sub") == 0) {
+                    claim_ptr = claims[i].value;
+                    break;
+                }
+            }
+
+            int password_change_code = changepassword(claim_ptr, new_password->valuestring, old_password->valuestring);
             if (password_change_code == 0) {
-                const char* not_found = "NIGGEEERR";
+                for (size_t i = 0; i < claims_len; ++i) {
+                    free(claims[i].key);
+                    free(claims[i].value);
+                }
+                free(claims);
+
+                const char* not_found = "Password changed";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+            else {
+                for (size_t i = 0; i < claims_len; ++i) {
+                    free(claims[i].key);
+                    free(claims[i].value);
+                }
+                free(claims);
+
+                const char* not_found = "Old password doesn't match";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
                     (void*)not_found, MHD_RESPMEM_PERSISTENT);
                 MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -487,6 +526,11 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 return ret;
             }
 
+            for (size_t i = 0; i < claims_len; ++i) {
+                free(claims[i].key);
+                free(claims[i].value);
+            }
+            free(claims);
         }
     }
 
