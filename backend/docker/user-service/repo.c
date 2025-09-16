@@ -272,8 +272,8 @@ int magic_hash(const char* email, const char* username, char* activation_link) {
     printf("\n");
 
     bson_t* doc = bson_new();
-    BSON_APPEND_UTF8(doc, "username", username);
     BSON_APPEND_UTF8(doc, "timestamp", email);
+    BSON_APPEND_UTF8(doc, "username", username);
     BSON_APPEND_UTF8(doc, "link", activation_link);
     BSON_APPEND_UTF8(doc, "type", "magic");
     BSON_APPEND_INT32(doc, "active", 1);
@@ -1178,7 +1178,7 @@ int check_magic_link(const char *link, char **username) {
     return 0;
 }
 
-int cheeky(const char *username, char *role) {
+int cheeky(const char *username, char **role) {
     
     Repository* repo = New(log);
     printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
@@ -1205,7 +1205,8 @@ int cheeky(const char *username, char *role) {
             if (bson_iter_find(&iter, "role")) {
                 const char* found_role = bson_iter_utf8(&iter, NULL);
                 printf("Found user: %s\n", found_role);
-                strncpy(role, found_role, 10);
+                *role = malloc(strlen(found_role) + 1);
+                snprintf(*role, strlen(found_role) + 1, "%s", found_role);
             }
         }
     }

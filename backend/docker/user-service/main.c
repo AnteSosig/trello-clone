@@ -655,8 +655,9 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             params.sub = first_username_char;
             params.iss = "Trello Clone";
             char *role;
-            cheeky(first_username_char, role);
+            cheeky(first_username_char, &role);
             params.aud = role;
+            fprintf(stderr, "I love rozen maiden88888\n");
 
             params.iat = l8w8jwt_time(NULL);
             params.exp = l8w8jwt_time(NULL) + 600; /* Set to expire after 10 minutes (600 seconds). */
@@ -670,6 +671,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             int r = l8w8jwt_encode(&params);
 
             printf("\n l8w8jwt example HS512 token: %s \n", r == L8W8JWT_SUCCESS ? jwt : " (encoding failure) ");
+            fprintf(stderr, "I love rozen maiden2232323232\n");
 
             char response_str[512];
             snprintf(response_str, sizeof(response_str), "{\"token\": \"%s\", \"role\": \"%s\", \"expires\": \"%d\"}", jwt, role, 600);
@@ -700,10 +702,10 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         }
         else {
             struct MHD_Response* response;
-            const char* response_text = "Internal server error";
+            const char* response_text = "Bad request";
             response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
             MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
             MHD_destroy_response(response);
 
             return ret;
