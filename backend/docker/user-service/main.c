@@ -534,6 +534,87 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         }
     }
 
+    if (strcmp(url, "/magicclaw") == 0 && strcmp(method, "POST") == 0) {
+        
+        printf("ZLAJAAAAA.\n");
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        printf("KAKIMIIIICS.\n");
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+        // If there's upload data, accumulate it
+        if (*upload_data_size > 0) {
+            // Reallocate memory to store incoming data
+            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
+            *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
+            return MHD_YES;
+        }
+        else {
+            // All data received, process the JSON
+            cJSON* json = cJSON_Parse(conn_info->json_data);
+            if (json == NULL) {
+                const char* error_response = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
+                return MHD_YES;
+            }
+
+            cJSON* username_or_email = cJSON_GetObjectItem(json, "username_or_email");
+            if (!cJSON_IsString(username_or_email)) {
+                const char* not_found = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            int find_user_code = find_user_and_send_magic(username_or_email->valuestring);
+            fprintf(stderr, "Gonosz Magus\n");
+            fprintf(stderr, "Magic exit code %d\n", find_user_code);
+
+            if (find_user_code == 0) {
+                const char* not_found = "Account inactive";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            const char* not_found = "Magic lint sent";
+            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                (void*)not_found, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            return ret;
+
+        }
+    }
+
+    if (strcmp(url, "/magiclogin") == 0 && strcmp(method, "GET") == 0) {
+
+
+
+    }
+
     // Handle other routes or return 404
     const char* not_found = "404 - Not Found";
     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
