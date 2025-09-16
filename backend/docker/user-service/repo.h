@@ -12,5 +12,6 @@ int changepassword(const char* username, const char* new_password, const char* o
 int find_user_and_send_magic(const char* username);
 int check_magic_link(const char* link, char** username);
 int cheeky(const char* username, char** role);
+int find_user_and_send_recovery(const char* email);
 
 #endif

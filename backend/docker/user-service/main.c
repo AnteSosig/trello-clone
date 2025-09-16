@@ -504,11 +504,31 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             }
 
             const char *claim_ptr;
+            int access = 0;
             for (size_t i = 0; i < claims_len; ++i) {
                 if (strcmp(claims[i].key, "sub") == 0) {
                     claim_ptr = claims[i].value;
-                    break;
                 }
+                if (strcmp(claims[i].key, "aud") == 0) {
+                    if (strcmp(claims[i].value, "USER") != 0 || strcmp(claims[i].value, "MANAGER") != 0) {
+                        access = 1;
+                    }
+                }
+            }
+            if (access == 1) {
+                for (size_t i = 0; i < claims_len; ++i) {
+                    free(claims[i].key);
+                    free(claims[i].value);
+                }
+                free(claims);
+
+                const char* not_found = "403 - Forbidden";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_FORBIDDEN, response);
+                MHD_destroy_response(response);
+                return ret;
             }
 
             int password_change_code = changepassword(claim_ptr, new_password->valuestring, old_password->valuestring);
@@ -709,6 +729,96 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             MHD_destroy_response(response);
 
             return ret;
+        }
+    }
+
+    if (strcmp(url, "/recoverpassword") == 0 && strcmp(method, "POST") == 0) {
+        
+        printf("ZLAJAAAAA.\n");
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        printf("KAKIMIIIICS.\n");
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+        // If there's upload data, accumulate it
+        if (*upload_data_size > 0) {
+            // Reallocate memory to store incoming data
+            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
+            *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
+            return MHD_YES;
+        }
+        else {
+            // All data received, process the JSON
+            cJSON* json = cJSON_Parse(conn_info->json_data);
+            if (json == NULL) {
+                const char* error_response = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
+                return MHD_YES;
+            }
+
+            cJSON* email = cJSON_GetObjectItem(json, "email");
+            if (!cJSON_IsString(email)) {
+                const char* not_found = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+
+            int find_recovery_code = find_user_and_send_recovery(email->valuestring);
+            if (find_recovery_code == 1) {
+                const char* not_found = "Inactive account";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+            else if (find_recovery_code == 0) {
+                const char* not_found = "Email sent";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+            else if (find_recovery_code == 3) {
+                const char* not_found = "No such user";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
+            else {
+                const char* not_found = "Internal server error";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                    (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+                MHD_destroy_response(response);
+                return ret;
+            }
         }
     }
 

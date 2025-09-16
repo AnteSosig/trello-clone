@@ -298,6 +298,101 @@ int magic_hash(const char* email, const char* username, char* activation_link) {
     return 0;
 }
 
+int recovery_hash(const char* email, const char* username, char* activation_link) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    fprintf(repo->logger, "Generating hash...\n");
+    printf("Generating hash...\n");
+
+    SHA1Context sha;
+    int err;
+    uint8_t Message_Digest[20];
+
+    err = SHA1Reset(&sha);
+    if (err) {
+        fprintf(repo->logger, "SHA1Reset failed with error code %d\n", err);
+        fprintf(stderr, "SHA1Reset failed with error code %d\n", err);
+        Cleanup(repo);
+
+        return 1;
+    }
+
+    // Input data
+    int e_length = strlen(email);
+    int u_length = strlen(username);
+    char* forhash = (char*)malloc(e_length + u_length);
+    int i, j;
+    for (i = 0; i < e_length; ++i) {
+        forhash[i] = email[i];
+    }
+    for (j = 0; j < u_length; ++j) {
+        forhash[i + j] = username[j];
+    }
+    //forhash[e_length + u_length] = '\0';
+
+    err = SHA1Input(&sha, (const unsigned char*)forhash, strlen(forhash));
+    if (err) {
+        fprintf(repo->logger, "SHA1Input failed with error code %d\n", err);
+        fprintf(stderr, "SHA1Input failed with error code %d\n", err);
+        free(forhash);
+        Cleanup(repo);
+
+        return 2;
+    }
+    free(forhash);
+
+    err = SHA1Result(&sha, Message_Digest);
+    if (err)
+    {
+        fprintf(repo->logger, "SHA1Result Error %d, could not compute message digest.\n", err);
+        fprintf(stderr, "SHA1Result Error %d, could not compute message digest.\n", err);
+        Cleanup(repo);
+
+        return 3;
+    }
+
+    char hashedvalue[20 * 2 + 1];
+    for (int i = 0; i < 20; i++) {
+        sprintf(&hashedvalue[i * 2], "%02x", Message_Digest[i]);
+    }
+    hashedvalue[20 * 2] = '\0';
+    (const char*)hashedvalue;
+    printf(hashedvalue);
+    printf("\n");
+    strncpy(activation_link, hashedvalue, 41);
+    printf((const char*)activation_link);
+    printf("\n");
+
+    bson_t* doc = bson_new();
+    BSON_APPEND_UTF8(doc, "timestamp", email);
+    BSON_APPEND_UTF8(doc, "username", username);
+    BSON_APPEND_UTF8(doc, "link", activation_link);
+    BSON_APPEND_UTF8(doc, "type", "recovery");
+    BSON_APPEND_INT32(doc, "active", 1);
+
+    bson_error_t error;
+    if (!mongoc_collection_insert_one(repo->collection, doc, NULL, NULL, &error)) {
+        fprintf(repo->logger, "Error: Insert failed\n");
+        printf("Error: Insert failed\n");
+        bson_destroy(doc);
+        Cleanup(repo);
+
+        return 4;
+    }
+    else {
+        fprintf(repo->logger, "Document inserted successfully.\n");
+        printf("Document inserted successfully.\n");
+    }
+
+    bson_destroy(doc);
+    Cleanup(repo);
+
+    return 0;
+}
+
 int emailto(char email[], FILE* payload_file) {
 
     if (!payload_file) {
@@ -1212,6 +1307,194 @@ int cheeky(const char *username, char **role) {
     }
 
     return 0;
+}
+
+int find_user_and_send_recovery(const char *email) {
+    
+    Repository* repo = New(log);
+    printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    const char* db_name = "users";
+    const char* collection_name = "users";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Trazenje korisnika.\n");
+    fprintf(stderr, "Trazenje korisnika\n");
+
+    int res = 1;
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "email", BCON_UTF8(email)
+    );
+    printf("Trazenje nigera.\n");
+    fprintf(stderr, "Trazenje nigera\n");
+
+    User user;
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    if (mongoc_cursor_next(cursor, &doc)) {
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "username")) {
+                const char* found_role = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(user.username, found_role, sizeof(user.username));
+            }
+            if (bson_iter_find(&iter, "email")) {
+                const char* found_role = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(user.email, found_role, sizeof(user.email));
+            }
+            if (bson_iter_find(&iter, "active")) {
+                int active = bson_iter_int32(&iter);
+                printf("Active: %d\n", active);
+                if (!active) {
+                    bson_destroy(query);
+                    mongoc_cursor_destroy(cursor);
+                    Cleanup(repo);
+                    return 1;
+                }
+            }
+        }
+        fprintf(repo->logger, "User found.\n");
+        printf("User found.\n");
+        fprintf(stderr, "Nigger found\n");
+        res = 0;
+    }
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+
+    int magic_hash_code = -1;
+    char activation_link[41];
+    if (res == 0) {
+        time_t now = time(NULL);
+        now = now + 5 * 60;
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%ld", (long)now);
+        magic_hash_code = recovery_hash((const char *)buffer, (const char *)user.username, activation_link);
+        fprintf(stderr, "Spar jobb ar jo dontes\n");
+    }
+    if (magic_hash_code == 0) {
+        FILE* payload_file = fopen("magiclink.txt", "w");
+        if (payload_file) {
+            fprintf(payload_file, "To: %s\r\n"
+                "From: trello clone\r\n"
+                "Subject: Email Verification\r\n"
+                "\r\n"
+                "Vasa veza za oporavak naloga: http://localhost:3000/magic?link=%s\r\n", user.email, (const char*)activation_link);
+            fclose(payload_file);
+            fprintf(repo->logger, "Written to the payload file.\n");
+            printf("Written to the payload file.\n");
+        }
+        else {
+            fprintf(repo->logger, "Failed to open payload file for writing.\n");
+            printf("Failed to open payload file for writing.\n");
+            Cleanup(repo);
+
+            return 2;
+        }
+
+        payload_file = fopen("magiclink.txt", "r");
+        if (!emailto(user.email, payload_file)) {
+            printf("ubicu se bukvalno.\n");
+            fprintf(repo->logger, "Email sent successfully.\n");
+            printf("Email sent successfully.\n");
+            fprintf(stderr, "Email sent successfully\n");
+        }
+
+        Cleanup(repo);
+
+        return 0;
+    }
+
+    printf("Trazenje korisnika.\n");
+    fprintf(stderr, "Trazenje korisnika 2\n");
+
+    bson_t* query2 = BCON_NEW(
+        "username", BCON_UTF8(email)
+    );
+
+    mongoc_cursor_t* cursor2 = mongoc_collection_find_with_opts(repo->collection, query2, NULL, NULL);
+    const bson_t* doc2;
+    if (mongoc_cursor_next(cursor2, &doc2)) {
+        bson_iter_t iter2;
+        if (bson_iter_init(&iter2, doc2)) {
+            if (bson_iter_find(&iter2, "username")) {
+                const char* found_role = bson_iter_utf8(&iter2, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(user.username, found_role, sizeof(user.username));
+            }
+            if (bson_iter_find(&iter2, "email")) {
+                const char* found_role = bson_iter_utf8(&iter2, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(user.email, found_role, sizeof(user.email));
+            }
+            if (bson_iter_find(&iter2, "active")) {
+                int active = bson_iter_int32(&iter2);
+                printf("Active: %d\n", active);
+                if (!active) {
+                    bson_destroy(query);
+                    mongoc_cursor_destroy(cursor);
+                    Cleanup(repo);
+                    return 1;
+                }
+            }
+        }
+        fprintf(repo->logger, "User found.\n");
+        printf("User found.\n");
+        fprintf(stderr, "Nigger found\n");
+        res = 0;
+    }
+
+    bson_destroy(query2);
+    mongoc_cursor_destroy(cursor2);
+    fprintf(stderr, "Trazenje korisnika 3\n");
+
+    if (res == 0) {
+        time_t now = time(NULL);
+        now = now + 5 * 60;
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%ld", (long)now);
+        magic_hash_code = recovery_hash((const char *)buffer, (const char *)user.username, activation_link);
+        fprintf(stderr, "Spar jobb ar jo dontes 2\n");
+    }
+    if (magic_hash_code == 0) {
+        FILE* payload_file = fopen("magiclink.txt", "w");
+        if (payload_file) {
+            fprintf(payload_file, "To: %s\r\n"
+                "From: trello clone\r\n"
+                "Subject: Email Verification\r\n"
+                "\r\n"
+                "Vasa veza za oporavak naloga: http://localhost:3000/magic?link=%s\r\n", user.email, (const char*)activation_link);
+            fclose(payload_file);
+            fprintf(repo->logger, "Written to the payload file.\n");
+            printf("Written to the payload file.\n");
+        }
+        else {
+            fprintf(repo->logger, "Failed to open payload file for writing.\n");
+            printf("Failed to open payload file for writing.\n");
+            Cleanup(repo);
+
+            return 2;
+        }
+
+        payload_file = fopen("magiclink.txt", "r");
+        if (!emailto(user.email, payload_file)) {
+            printf("ubicu se bukvalno.\n");
+            fprintf(repo->logger, "Email sent successfully.\n");
+            printf("Email sent successfully.\n");
+            fprintf(stderr, "Email sent successfully\n");
+        }
+
+        Cleanup(repo);
+
+        return 0;
+    }
+
+    Cleanup(repo);
+
+    return 3;
 }
 
 int repo() {
