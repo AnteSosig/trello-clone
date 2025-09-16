@@ -981,6 +981,7 @@ int find_user_and_send_magic(const char* username_or_email) {
     char activation_link[41];
     if (res == 0) {
         time_t now = time(NULL);
+        now = now + 5 * 60;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%ld", (long)now);
         magic_hash_code = magic_hash((const char *)buffer, (const char *)user.username, activation_link);
@@ -1064,6 +1065,7 @@ int find_user_and_send_magic(const char* username_or_email) {
 
     if (res == 0) {
         time_t now = time(NULL);
+        now = now + 5 * 60;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%ld", (long)now);
         magic_hash_code = magic_hash((const char *)buffer, (const char *)user.username, activation_link);
@@ -1105,6 +1107,110 @@ int find_user_and_send_magic(const char* username_or_email) {
     Cleanup(repo);
 
     return 3;
+}
+
+int check_magic_link(const char *link, char **username) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Provera aktivacionog koda.\n");
+    fprintf(stderr, "I love rozen maiden5\n");
+    fprintf(stderr, "link: %s\n", link);
+
+    const char* type = "magic";
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "link", BCON_UTF8(link), "}",
+        "{", "type", BCON_UTF8(type), "}",
+        "]"
+    );
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    while (mongoc_cursor_next(cursor, &doc)) {
+        // Extract and print "username" field
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "timestamp")) {
+                const char* found_time = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_time);
+                fprintf(stderr, "I love rozen maiden6\n");
+                long expiration_time;
+                int sscanf_code = sscanf(found_time, "%ld", &expiration_time);
+
+                time_t now = time(NULL);
+                char buffer[32];
+                snprintf(buffer, sizeof(buffer), "%ld", (long)now);
+                long current_time;
+                int sscanf_code1 = sscanf(buffer, "%ld", &current_time);
+
+                if (current_time > expiration_time) {
+
+                    fprintf(stderr, "I love rozen maiden?\n");
+                    fprintf(stderr, "Expired\n");
+                    *username = malloc(2);
+                    snprintf(*username, 2, "*");
+                    bson_destroy(query);
+                    mongoc_cursor_destroy(cursor);
+                    Cleanup(repo);
+                    fprintf(stderr, "Niggered\n");
+
+                    return 1;
+                }
+            }
+            if (bson_iter_find(&iter, "username")) {
+                const char* found_username = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_username);
+                *username = malloc(strlen(found_username) + 1);
+                snprintf(*username, strlen(found_username) + 1, "%s", found_username);
+            }
+        }
+    }
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+    Cleanup(repo);
+
+    return 0;
+}
+
+int cheeky(const char *username, char *role) {
+    
+    Repository* repo = New(log);
+    printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    const char* db_name = "users";
+    const char* collection_name = "users";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Trazenje korisnika.\n");
+    fprintf(stderr, "Trazenje korisnika\n");
+
+    int res = 1;
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "username", BCON_UTF8(username)
+    );
+    printf("Trazenje nigera.\n");
+    fprintf(stderr, "Trazenje nigera\n");
+
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    if (mongoc_cursor_next(cursor, &doc)) {
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "role")) {
+                const char* found_role = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_role);
+                strncpy(role, found_role, 10);
+            }
+        }
+    }
+
+    return 0;
 }
 
 int repo() {

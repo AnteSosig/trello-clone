@@ -40,6 +40,23 @@ int parse_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const 
     return MHD_YES;
 }
 
+int parse_magic_link(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
+
+    char** username = (char**)cls;
+
+    if (key && value) {
+        if (strcmp(key, "link") == 0) {
+            fprintf(stderr, "I love rozen maiden3\n");
+            int activation_return = check_magic_link(value, username);
+            printf("returned: %d\n", activation_return);
+            fprintf(stderr, "returned: %d\n", activation_return);
+            fprintf(stderr, "I love rozen maiden4\n");
+        }
+    }
+
+    return MHD_YES;
+}
+
 int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
     struct Usersearch* userstruct = (struct Usersearch*)cls;
@@ -588,7 +605,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             fprintf(stderr, "Gonosz Magus\n");
             fprintf(stderr, "Magic exit code %d\n", find_user_code);
 
-            if (find_user_code == 0) {
+            if (find_user_code != 0) {
                 const char* not_found = "Account inactive";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
                     (void*)not_found, MHD_RESPMEM_PERSISTENT);
@@ -598,7 +615,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 return ret;
             }
 
-            const char* not_found = "Magic lint sent";
+            const char* not_found = "Magic link sent";
             struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
                 (void*)not_found, MHD_RESPMEM_PERSISTENT);
             MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -611,8 +628,86 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
     if (strcmp(url, "/magiclogin") == 0 && strcmp(method, "GET") == 0) {
 
+        printf("Received GET request for URL path: %s\n", url);
+        fprintf(stderr, "I love rozen maiden\n");
+        char *first_username_char = NULL;
 
+        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_magic_link, &first_username_char);
+        fprintf(stderr, "I love rozen maiden1\n");
+        printf("Username: %s\n", first_username_char);
+        fprintf(stderr, "Username: %s\n", first_username_char);
+        fprintf(stderr, "I love rozen maiden77\n");
 
+        if (first_username_char && strcmp(first_username_char, "*") != 0) {
+
+            fprintf(stderr, "I love rozen maiden2\n");
+            const char *var_name = "HMAC_KEY";
+            char *hmac_key = getenv(var_name);
+
+            char* jwt;
+            size_t jwt_length;
+
+            struct l8w8jwt_encoding_params params;
+            l8w8jwt_encoding_params_init(&params);
+
+            params.alg = L8W8JWT_ALG_HS512;
+
+            params.sub = first_username_char;
+            params.iss = "Trello Clone";
+            char *role;
+            cheeky(first_username_char, role);
+            params.aud = role;
+
+            params.iat = l8w8jwt_time(NULL);
+            params.exp = l8w8jwt_time(NULL) + 600; /* Set to expire after 10 minutes (600 seconds). */
+
+            params.secret_key = (unsigned char*)hmac_key;
+            params.secret_key_length = strlen(params.secret_key);
+
+            params.out = &jwt;
+            params.out_length = &jwt_length;
+
+            int r = l8w8jwt_encode(&params);
+
+            printf("\n l8w8jwt example HS512 token: %s \n", r == L8W8JWT_SUCCESS ? jwt : " (encoding failure) ");
+
+            char response_str[512];
+            snprintf(response_str, sizeof(response_str), "{\"token\": \"%s\", \"role\": \"%s\", \"expires\": \"%d\"}", jwt, role, 600);
+            struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
+                (void*)response_str, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            printf("KKKKKKKKKKKKK.\n");
+
+            /* Always free the output jwt string! */
+            l8w8jwt_free(jwt);
+            free(first_username_char);
+
+            return ret;
+        }
+        else if (first_username_char != NULL && !strcmp(first_username_char, "*")) {
+            struct MHD_Response* response;
+            const char* response_text = "Expired magic link";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+
+            free(first_username_char);
+
+            return ret;
+        }
+        else {
+            struct MHD_Response* response;
+            const char* response_text = "Internal server error";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+
+            return ret;
+        }
     }
 
     // Handle other routes or return 404
