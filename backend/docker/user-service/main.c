@@ -57,6 +57,25 @@ int parse_magic_link(void* cls, enum MHD_ValueKind kind, const char* key, const 
     return MHD_YES;
 }
 
+int parse_recovery_link(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
+
+    int* is_valid = (int*)cls;
+
+    if (key && value) {
+        if (strcmp(key, "link") == 0) {
+            int activation_return = check_recovery_link(value);
+            printf("returned: %d\n", activation_return);
+            fprintf(stderr, "returned: %d\n", activation_return);
+            fprintf(stderr, "Cajevi\n");
+            if (!activation_return) {
+                *is_valid = 1;
+            }
+        }
+    }
+
+    return MHD_YES;
+}
+
 int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
     struct Usersearch* userstruct = (struct Usersearch*)cls;
@@ -206,7 +225,6 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             return ret;
         }
-
     }
 
     if (strcmp(url, "/login") == 0 && strcmp(method, "POST") == 0) {
@@ -819,6 +837,37 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 MHD_destroy_response(response);
                 return ret;
             }
+        }
+    }
+
+    if (strcmp(url, "/confirmrecovercode") == 0 && strcmp(method, "GET") == 0) {
+
+        printf("Received GET request for URL path: %s\n", url);
+        fprintf(stderr, "I love rozen maiden\n");
+        int is_valid = 0;
+
+        MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_recovery_link, &is_valid);
+        printf("is valid: %d\n", is_valid);
+        // Parse query string parameters and check them on the fly
+        if (is_valid) {
+            struct MHD_Response* response;
+            const char* response_text = "Valid link";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+
+            return ret;
+        }
+        else {
+            struct MHD_Response* response;
+            const char* response_text = "Invalid link";
+            response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+
+            return ret;
         }
     }
 

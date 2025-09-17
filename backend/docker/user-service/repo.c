@@ -1497,6 +1497,80 @@ int find_user_and_send_recovery(const char *email) {
     return 3;
 }
 
+int check_recovery_link(const char *link) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Provera aktivacionog koda.\n");
+    fprintf(stderr, "I love rozen maiden5\n");
+    fprintf(stderr, "link: %s\n", link);
+
+    const char* type = "recovery";
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "link", BCON_UTF8(link), "}",
+        "{", "type", BCON_UTF8(type), "}",
+        "]"
+    );
+
+    int found = 0;
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    while (mongoc_cursor_next(cursor, &doc)) {
+        // Extract and print "username" field
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "timestamp")) {
+                const char* found_time = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_time);
+                fprintf(stderr, "I love rozen maiden6\n");
+                long expiration_time;
+                int sscanf_code = sscanf(found_time, "%ld", &expiration_time);
+
+                time_t now = time(NULL);
+                char buffer[32];
+                snprintf(buffer, sizeof(buffer), "%ld", (long)now);
+                long current_time;
+                int sscanf_code1 = sscanf(buffer, "%ld", &current_time);
+
+                if (current_time > expiration_time) {
+
+                    fprintf(stderr, "I love rozen maiden?\n");
+                    fprintf(stderr, "Expired\n");
+                    bson_destroy(query);
+                    mongoc_cursor_destroy(cursor);
+                    Cleanup(repo);
+                    fprintf(stderr, "Niggered\n");
+
+                    return 1;
+                }
+
+                found = 1;
+            }
+        }
+    }
+
+    if (found == 1) {
+
+        bson_destroy(query);
+        mongoc_cursor_destroy(cursor);
+        Cleanup(repo);
+        fprintf(stderr, "work pls 9999999999\n");
+
+        return 0;
+    }
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+    Cleanup(repo);
+
+    return 2;
+}
+
 int repo() {
 
     log = fopen("log.txt", "w");
