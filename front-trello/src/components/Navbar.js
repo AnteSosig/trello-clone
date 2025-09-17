@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
 
   const handleLogout = () => {
-    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-     navigate('/login');
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -50,30 +52,50 @@ const Navbar = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">
-            <NavLink to="/login">Prijavi se</NavLink>
-            <NavLink to="/register">Registracija</NavLink>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-gray-700 hover:text-emerald-600 rounded-lg hover:bg-gray-50 
-                         transition-all duration-200 font-medium"
-            >
-              Logout
-            </button>
+            {!isAuthenticated ? (
+              <>
+                <NavLink to="/login">Prijavi se</NavLink>
+                <NavLink to="/register">Registracija</NavLink>
+              </>
+            ) : (
+              <>
+                <span className="px-4 py-2 text-gray-700 font-medium">
+                  Role: {user?.role}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 text-gray-700 hover:text-emerald-600 rounded-lg hover:bg-gray-50 
+                             transition-all duration-200 font-medium"
+                >
+                  Logout
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Mobile Navigation */}
         <div className={`md:hidden ${isOpen ? 'block' : 'hidden'} pb-6`}>
           <div className="flex flex-col space-y-2">
-            <MobileNavLink to="/login">Prijavi se</MobileNavLink>
-            <MobileNavLink to="/register">Registracija</MobileNavLink>
-            <button
-              onClick={handleLogout}
-              className="block px-4 py-2 text-gray-700 hover:text-emerald-600 hover:bg-gray-50 
-                         transition-colors duration-200 text-left"
-            >
-              Logout
-            </button>
+            {!isAuthenticated ? (
+              <>
+                <MobileNavLink to="/login">Prijavi se</MobileNavLink>
+                <MobileNavLink to="/register">Registracija</MobileNavLink>
+              </>
+            ) : (
+              <>
+                <span className="block px-4 py-2 text-gray-700 font-medium">
+                  Role: {user?.role}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="block px-4 py-2 text-gray-700 hover:text-emerald-600 hover:bg-gray-50 
+                             transition-colors duration-200 text-left"
+                >
+                  Logout
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Cookies from 'js-cookie';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginForm = () => {
   const [username_or_email, setUsernameOrEmail] = useState('');
@@ -8,6 +9,11 @@ const LoginForm = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  
+  // Get the page user was trying to access before login
+  const from = location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,12 +59,17 @@ const LoginForm = () => {
         sameSite: 'strict'
       });
 
-      setSuccessMessage('Uspešno ste ulogovani.');
-      
-      // Add a small delay before redirecting to show the success message
-      setTimeout(() => {
-        navigate('/');
-      }, 1000);
+      // Update auth context
+      if (login(data.token, data.role)) {
+        setSuccessMessage('Uspešno ste ulogovani.');
+        
+        // Add a small delay before redirecting to show the success message
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 1000);
+      } else {
+        setError('Failed to process login data');
+      }
       
     } catch (error) {
       console.error('Login error:', error);

@@ -136,9 +136,13 @@
     <ClCompile Include="repo.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="model.h" />
-    <ClCompile Include="repo.h" />
     <ClCompile Include="model.c" />
+    <ClCompile Include="jwt_middleware.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="model.h" />
+    <ClInclude Include="repo.h" />
+    <ClInclude Include="jwt_middleware.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Makefile.txt" />

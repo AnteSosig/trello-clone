@@ -138,9 +138,11 @@
     <ClCompile Include="repo.h" />
     <ClCompile Include="model.c" />
     <ClCompile Include="SHA.c" />
+    <ClCompile Include="jwt_middleware.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SHA.h" />
+    <ClInclude Include="jwt_middleware.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

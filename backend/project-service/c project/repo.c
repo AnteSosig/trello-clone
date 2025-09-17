@@ -1,6 +1,8 @@
 #include <mongoc/mongoc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
 #include "model.h"
 #include "repo.h"
 
@@ -359,6 +361,151 @@ int update_project_members(const char* project_id, const char** members, int mem
     fclose(log);
     return 0;
 }
+
+/**
+ * Get projects filtered by user role and ID
+ * MANAGER: Gets all projects (or projects they moderate)
+ * USER: Gets only projects they are members of
+ */
+char* get_projects_by_user_role(const char* user_id, const char* role) {
+    printf("Filtering projects for user: %s with role: %s\n", user_id, role);
+    
+    // For now, MANAGERs get all projects, USERs get filtered projects
+    if (strcmp(role, "MANAGER") == 0) {
+        // Managers see all projects
+        return get_all_projects();
+    } else if (strcmp(role, "USER") == 0) {
+        // SAFE FALLBACK: Get all projects and filter in code
+        // This avoids the MongoDB cursor crash while still providing filtering
+        printf("Getting all projects and filtering for user: %s\n", user_id);
+        
+        char* all_projects = get_all_projects();
+        if (all_projects == NULL) {
+            return NULL;
+        }
+        
+        // Parse JSON and filter projects where user is a member
+        cJSON* json_array = cJSON_Parse(all_projects);
+        if (json_array == NULL) {
+            printf("Error: Failed to parse projects JSON\n");
+            free(all_projects);
+            return NULL;
+        }
+        
+        cJSON* filtered_array = cJSON_CreateArray();
+        int array_size = cJSON_GetArraySize(json_array);
+        int found_count = 0;
+        
+        printf("Checking %d projects for user membership\n", array_size);
+        
+        for (int i = 0; i < array_size; i++) {
+            cJSON* project = cJSON_GetArrayItem(json_array, i);
+            cJSON* members = cJSON_GetObjectItem(project, "members");
+            
+            if (cJSON_IsArray(members)) {
+                int members_count = cJSON_GetArraySize(members);
+                bool user_is_member = false;
+                
+                for (int j = 0; j < members_count; j++) {
+                    cJSON* member = cJSON_GetArrayItem(members, j);
+                    if (cJSON_IsString(member) && strcmp(member->valuestring, user_id) == 0) {
+                        user_is_member = true;
+                        printf("User %s found in project %d\n", user_id, i);
+                        break;
+                    }
+                }
+                
+                if (user_is_member) {
+                    cJSON* project_copy = cJSON_Duplicate(project, 1);
+                    cJSON_AddItemToArray(filtered_array, project_copy);
+                    found_count++;
+                }
+            }
+        }
+        
+        char* filtered_json = cJSON_Print(filtered_array);
+        printf("Found %d projects where user %s is a member\n", found_count, user_id);
+        
+        // Cleanup
+        cJSON_Delete(json_array);
+        cJSON_Delete(filtered_array);
+        free(all_projects);
+        
+        return filtered_json;
+    }
+    
+    // Unknown role
+    return NULL;
+}
+
+/**
+ * Check if user has access to a specific project
+ * MANAGER: Access to all projects
+ * USER: Access only to projects they're members of
+ */
+int check_user_project_access(const char* user_id, const char* role, const char* project_id) {
+    printf("Checking access for user: %s (role: %s) to project: %s\n", user_id, role, project_id);
+    
+    // Managers have access to all projects
+    if (strcmp(role, "MANAGER") == 0) {
+        return 0; // Access granted
+    }
+    
+    // For users, check if they're members of the specific project
+    if (strcmp(role, "USER") == 0) {
+        printf("Checking if user %s is a member of project %s\n", user_id, project_id);
+        
+        // Use the existing get_project_by_id function to fetch the project
+        char* project_json = get_project_by_id(project_id);
+        if (project_json == NULL) {
+            printf("Project not found or error fetching project\n");
+            return -1;
+        }
+        
+        // Parse the project JSON
+        cJSON* project = cJSON_Parse(project_json);
+        if (project == NULL) {
+            printf("Error parsing project JSON\n");
+            free(project_json);
+            return -1;
+        }
+        
+        // Get the members array
+        cJSON* members = cJSON_GetObjectItem(project, "members");
+        if (!cJSON_IsArray(members)) {
+            printf("No members array found in project\n");
+            cJSON_Delete(project);
+            free(project_json);
+            return -1;
+        }
+        
+        // Check if user is in the members array
+        int members_count = cJSON_GetArraySize(members);
+        bool user_is_member = false;
+        
+        for (int i = 0; i < members_count; i++) {
+            cJSON* member = cJSON_GetArrayItem(members, i);
+            if (cJSON_IsString(member) && strcmp(member->valuestring, user_id) == 0) {
+                user_is_member = true;
+                printf("Access granted: User %s is a member of project %s\n", user_id, project_id);
+                break;
+            }
+        }
+        
+        if (!user_is_member) {
+            printf("Access denied: User %s is not a member of project %s\n", user_id, project_id);
+        }
+        
+        // Cleanup
+        cJSON_Delete(project);
+        free(project_json);
+        
+        return user_is_member ? 0 : -1;
+    }
+    
+    return -1; // Access denied
+}
+
 int repo() {
     printf("Initializing MongoDB...\n");
     mongoc_init();

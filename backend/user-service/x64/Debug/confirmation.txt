@@ -1,4 +1,4 @@
-To: Damjan
+To: Sorko
 From: trello clone
 Subject: Test Email
 

@@ -7,6 +7,7 @@
 #include "repo.h"
 #include "algs.h"
 #include "encode.h"
+#include "jwt_middleware.h"
 
 #define PORT 8080
 
@@ -74,7 +75,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
         MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type");
+        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return ret;
@@ -346,6 +347,118 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         free(users);
         free(response_str);
 
+        return ret;
+    }
+
+    // Protected endpoint: Get current user profile (requires authentication)
+    if (strcmp(url, "/profile") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to read user data
+        if (check_permission(&auth, PERM_READ_USERS) != 0) {
+            return send_forbidden_response(connection, "Cannot access user profile");
+        }
+        
+        // Create response with user information
+        cJSON* profile = cJSON_CreateObject();
+        cJSON_AddStringToObject(profile, "user_id", auth.user_id);
+        cJSON_AddStringToObject(profile, "role", auth.role);
+        cJSON_AddStringToObject(profile, "status", "authenticated");
+        
+        char* profile_json = cJSON_Print(profile);
+        cJSON_Delete(profile);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(profile_json),
+            profile_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(profile_json);
+        
+        return ret;
+    }
+
+    // Protected endpoint: Admin-only user management (requires MANAGER role)
+    if (strcmp(url, "/admin/users") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check admin permission
+        if (check_permission(&auth, PERM_ADMIN_ONLY) != 0) {
+            return send_forbidden_response(connection, "Admin access required");
+        }
+        
+        // Create admin response
+        cJSON* admin_data = cJSON_CreateObject();
+        cJSON_AddStringToObject(admin_data, "message", "Admin access granted");
+        cJSON_AddStringToObject(admin_data, "admin_user", auth.user_id);
+        cJSON_AddStringToObject(admin_data, "role", auth.role);
+        
+        char* admin_json = cJSON_Print(admin_data);
+        cJSON_Delete(admin_data);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(admin_json),
+            admin_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(admin_json);
+        
+        return ret;
+    }
+
+    // Test endpoint: Check token validity (any authenticated user)
+    if (strcmp(url, "/auth/verify") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Create verification response
+        cJSON* verify_data = cJSON_CreateObject();
+        cJSON_AddStringToObject(verify_data, "valid", "true");
+        cJSON_AddStringToObject(verify_data, "user_id", auth.user_id);
+        cJSON_AddStringToObject(verify_data, "role", auth.role);
+        
+        char* verify_json = cJSON_Print(verify_data);
+        cJSON_Delete(verify_data);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(verify_json),
+            verify_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(verify_json);
+        
         return ret;
     }
 

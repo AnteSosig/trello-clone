@@ -18,18 +18,26 @@
     <ClCompile Include="repo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="model.h">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="main.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="repo.h">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="model.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="jwt_middleware.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="repo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="jwt_middleware.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Makefile.txt" />

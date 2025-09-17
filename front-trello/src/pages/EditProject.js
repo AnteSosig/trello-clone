@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
+import { projectApi, userApi } from '../utils/axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const EditProject = () => {
   const { id } = useParams();
@@ -10,6 +12,7 @@ const EditProject = () => {
   const [error, setError] = useState(null);
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
+  const { user } = useAuth();
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -17,8 +20,8 @@ const EditProject = () => {
       if (searchTerm.length >= 4) {
         setIsSearching(prev => ({ ...prev, [index]: true }));
         try {
-          const response = await fetch(`http://localhost:8080/finduser?name=${searchTerm}`);
-          const data = await response.json();
+          const response = await userApi.get(`/finduser?name=${searchTerm}`);
+          const data = response.data;
           setSearchResults(prev => ({ ...prev, [index]: data }));
         } catch (error) {
           console.error('Error searching users:', error);
@@ -35,10 +38,14 @@ const EditProject = () => {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const response = await fetch(`http://localhost:8081/projects/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch project');
-        const text = await response.text();
-        const data = JSON.parse(text);
+        if (!user) {
+          setError('Authentication required');
+          navigate('/login');
+          return;
+        }
+        
+        const response = await projectApi.get(`/projects/${id}`);
+        const data = response.data;
         
         const transformedData = {
           ...data,
@@ -51,34 +58,31 @@ const EditProject = () => {
         setProject(transformedData);
       } catch (err) {
         console.error('Error details:', err);
-        setError(err.message);
+        if (err.response?.status === 401) {
+          setError('Authentication failed - please login again');
+          navigate('/login');
+        } else if (err.response?.status === 403) {
+          setError('Access denied - insufficient permissions');
+        } else {
+          setError(err.message || 'Failed to fetch project');
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProject();
-  }, [id]);
+    if (user) {
+      fetchProject();
+    }
+  }, [id, user, navigate]);
 
   const handleMemberUpdate = async (newMembers) => {
     try {
       console.log('Sending update request with members:', newMembers);
       
-      const response = await fetch(`http://localhost:8081/updateproject/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          members: newMembers
-        }),
+      const response = await projectApi.patch(`/updateproject/${id}`, {
+        members: newMembers
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        throw new Error('Failed to update members');
-      }
       
       setProject(prev => ({
         ...prev,
@@ -87,7 +91,14 @@ const EditProject = () => {
       }));
     } catch (err) {
       console.error('Update error:', err);
-      setError(err.message);
+      if (err.response?.status === 401) {
+        setError('Authentication failed - please login again');
+        navigate('/login');
+      } else if (err.response?.status === 403) {
+        setError('Access denied - insufficient permissions');
+      } else {
+        setError(err.message || 'Failed to update members');
+      }
     }
   };
 

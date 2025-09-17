@@ -1,6 +1,6 @@
-﻿  main.c
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\user-service\c project\main.c(167,70): warning C4133: 'function': incompatible types - from 'int (__cdecl *)(void *,MHD_ValueKind,const char *,const char *)' to 'MHD_KeyValueIterator'
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\user-service\c project\main.c(306,70): warning C4133: 'function': incompatible types - from 'int (__cdecl *)(void *,MHD_ValueKind,const char *,const char *)' to 'MHD_KeyValueIterator'
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\user-service\c project\main.c(330,19): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\user-service\c project\main.c(326,27): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\user-service\c project\main.c(371,9): warning C4133: 'function': incompatible types - from 'int (__cdecl *)(void *,MHD_Connection *,const char *,const char *,const char *,const char *,size_t *,void **)' to 'MHD_AccessHandlerCallback'
+﻿x64\Debug\repo.obj : warning LNK4042: object specified more than once; extras ignored
+x64\Debug\model.obj : warning LNK4042: object specified more than once; extras ignored
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  c project.vcxproj -> C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\x64\Debug\c project.exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.

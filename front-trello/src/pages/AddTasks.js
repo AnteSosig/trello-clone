@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Cookies from 'js-cookie';
 import { jwtDecode } from "jwt-decode";
+import { projectApi, taskApi } from '../utils/axios';
+import { useAuth } from '../contexts/AuthContext';
+import { ManagerOnly, usePermissions } from '../components/RoleBasedRender';
 
 const AddTasks = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [projectData, setProjectData] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [userRole, setUserRole] = useState(null);
   const [taskData, setTaskData] = useState({
     name: '',
     description: '',
@@ -18,39 +19,40 @@ const AddTasks = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const { user, isManager } = useAuth();
+  const { permissions } = usePermissions();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const role = Cookies.get('role');
-        setUserRole(role);
-
-        // Get userId from JWT
-        const tokenCookie = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('token='));
-        if (tokenCookie) {
-          const token = tokenCookie.split('=')[1];
-          const decodedToken = jwtDecode(token);
-          setUserId(decodedToken.sub);
+        if (!user) {
+          setError('Authentication required');
+          navigate('/login');
+          return;
         }
 
-        const projectResponse = await fetch(`http://localhost:8081/projects/${projectId}`);
-        const projectData = await projectResponse.json();
-        setProjectData(projectData);
+        // Fetch project data with authorization
+        const projectResponse = await projectApi.get(`/projects/${projectId}`);
+        setProjectData(projectResponse.data);
 
-        const tasksResponse = await fetch(`http://localhost:8082/tasks/project/${projectId}`);
-        const tasksData = await tasksResponse.json();
-        setTasks(tasksData);
+        // Fetch tasks data with authorization  
+        const tasksResponse = await taskApi.get(`/tasks/project/${projectId}`);
+        setTasks(tasksResponse.data);
       } catch (err) {
         console.error('Error fetching data:', err);
-        setError('Failed to fetch project data');
+        if (err.response?.status === 401) {
+          setError('Authentication failed - please login again');
+          navigate('/login');
+        } else if (err.response?.status === 403) {
+          setError('Access denied - insufficient permissions');
+        } else {
+          setError('Failed to fetch project data');
+        }
       }
     };
 
     fetchData();
-  }, [projectId]);
+  }, [projectId, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,17 +60,10 @@ const AddTasks = () => {
     setSuccess('');
 
     try {
-      const tokenCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('token='));
-      
-      if (!tokenCookie) {
+      if (!user) {
         setError('Authentication required');
         return;
       }
-
-      const token = tokenCookie.split('=')[1];
-      const decodedToken = jwtDecode(token);
 
       const STATUS = {
         STATUS_PENDING: 0,
@@ -82,26 +77,17 @@ const AddTasks = () => {
         members: taskData.members,
         status: STATUS.STATUS_PENDING,
         project_id: projectId,
-        creator_id: decodedToken.sub
+        creator_id: user.id
       };
 
       console.log('Sending task payload:', taskPayload);
 
-      const response = await fetch('http://localhost:8082/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(taskPayload),
-      });
+      // Create task with authorization
+      await taskApi.post('/tasks', taskPayload);
 
-      if (!response.ok) {
-        throw new Error('Failed to create task');
-      }
-
-      const tasksResponse = await fetch(`http://localhost:8082/tasks/project/${projectId}`);
-      const tasksData = await tasksResponse.json();
-      setTasks(tasksData);
+      // Fetch updated tasks with authorization
+      const tasksResponse = await taskApi.get(`/tasks/project/${projectId}`);
+      setTasks(tasksResponse.data);
 
       setSuccess('Task created successfully');
       setTaskData({
@@ -129,22 +115,20 @@ const AddTasks = () => {
 
   const handleStatusChange = async (taskId, newStatusString) => {
     try {
-      await fetch(`http://localhost:8082/tasks/status/${taskId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatusString }),
-      });
+      // Update task status with authorization
+      await taskApi.patch(`/tasks/status/${taskId}`, { status: newStatusString });
 
-      // Refetch tasks to update UI
-      const tasksResponse = await fetch(`http://localhost:8082/tasks/project/${projectId}`);
-      const tasksData = await tasksResponse.json();
-      setTasks(tasksData);
+      // Refetch tasks to update UI with authorization
+      const tasksResponse = await taskApi.get(`/tasks/project/${projectId}`);
+      setTasks(tasksResponse.data);
 
     } catch (err) {
       console.error('Error updating task status:', err);
-      setError(err.message);
+      if (err.response?.status === 403) {
+        setError('Access denied - insufficient permissions to update task status');
+      } else {
+        setError(err.message);
+      }
     }
   };
 
@@ -187,7 +171,7 @@ const AddTasks = () => {
                 {projectData?.estimated_completion_date}
               </p>
               
-              {userRole === 'MANAGER' && (
+              <ManagerOnly>
                 <div className="mt-4">
                   <button
                     onClick={() => setShowAddTaskModal(true)}
@@ -199,7 +183,7 @@ const AddTasks = () => {
                     Add New Task
                   </button>
                 </div>
-              )}
+              </ManagerOnly>
             </div>
             <div>
               <p className="text-white/90">
@@ -224,7 +208,7 @@ const AddTasks = () => {
                   <div className="flex justify-between items-center">
                     <div className="text-white/80 flex items-center">
                       <span className="font-semibold">Status:</span> {" "}
-                      {((userId && task.members && task.members.includes(userId)) || (userRole === 'MANAGER' && userId && projectData && userId === projectData.moderator)) ? (
+                      {permissions.canUpdateTaskStatus(task.members, task.creator_id) ? (
                         <select
                           value={STATUS_MAP[task.status]}
                           onChange={(e) => handleStatusChange(getTaskId(task), e.target.value)}
@@ -251,7 +235,7 @@ const AddTasks = () => {
             )}
           </div>
         </div>
-        {showAddTaskModal && userRole === 'MANAGER' && (
+        {showAddTaskModal && isManager && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 max-w-2xl w-full shadow-2xl border border-white/20">
               <div className="flex justify-between items-start mb-6">

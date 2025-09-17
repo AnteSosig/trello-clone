@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
-import { jwtDecode } from "jwt-decode";
+import { projectApi, userApi } from '../utils/axios';
+import { useAuth } from '../contexts/AuthContext';
+import { ManagerOnly, RoleSwitch } from '../components/RoleBasedRender';
 
 const Home = () => {
   const [isGridView, setIsGridView] = useState(true);
@@ -10,17 +12,13 @@ const Home = () => {
   const [error, setError] = useState(null);
   const [selectedCard, setSelectedCard] = useState(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [userId, setUserId] = useState(null);
+  const { user, isManager } = useAuth();
 
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8081/projects');
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-      const data = await response.json();
+      const response = await projectApi.get('/projects');
+      const data = response.data;
       
       const transformedData = data.map(project => ({
         ...project,
@@ -30,17 +28,17 @@ const Home = () => {
       }));
       
       const filteredData = transformedData.filter(project => {
-        if (userRole === 'MANAGER') {
-          return project.moderator === userId;
-        } else if (userRole === 'USER') {
-          return project.members.includes(userId);
+        if (user.role === 'MANAGER') {
+          return project.moderator === user.id;
+        } else if (user.role === 'USER') {
+          return project.members.includes(user.id);
         }
         return false;
       });
       
       console.log('All projects:', data);
       console.log('Filtered projects:', filteredData);
-      console.log('Current user ID:', userId);
+      console.log('Current user ID:', user.id);
       setCards(filteredData);
     } catch (err) {
       console.error('Error fetching projects:', err);
@@ -48,41 +46,13 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, userRole]);
+  }, [user]);
 
   useEffect(() => {
-    try {
-      const tokenCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('token='));
-      
-      if (!tokenCookie) {
-        console.error('No token found in cookies');
-        setError('Authentication required');
-        setLoading(false);
-        return;
-      }
-
-      const token = tokenCookie.split('=')[1];
-      const decodedToken = jwtDecode(token);
-      console.log('Decoded token:', decodedToken);
-      setUserRole(decodedToken.aud);
-      setUserId(decodedToken.sub);
-      console.log('User ID set to:', decodedToken.sub);
-
-      fetchProjects();
-    } catch (err) {
-      console.error('Error processing token:', err);
-      setError('Authentication error');
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (userId && userRole) {
+    if (user) {
       fetchProjects();
     }
-  }, [userId, userRole, fetchProjects]);
+  }, [user, fetchProjects]);
 
   if (loading) {
     return (
@@ -115,29 +85,33 @@ const Home = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 max-w-2xl w-full shadow-2xl border border-white/20">
-          <div className="flex justify-between items-start mb-6">
-            <h2 className="text-3xl font-bold text-white">{card.project}</h2>
-            <div className="flex gap-4">
-              {userRole === 'MANAGER' && (
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-3xl font-bold text-white">{card.project}</h2>
+              <div className="flex gap-4">
+                <ManagerOnly>
+                  <button 
+                    onClick={() => {
+                      handleClose();
+                      navigate(`/edit-project/${projectId}`);
+                    }}
+                    className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                  >
+                    Edit Members
+                  </button>
+                </ManagerOnly>
                 <button 
                   onClick={() => {
                     handleClose();
-                    navigate(`/edit-project/${projectId}`);
+                    navigate(`/add-tasks/${projectId}`);
                   }}
                   className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
                 >
-                  Edit Members
+                  <RoleSwitch 
+                    managerContent="Add Tasks"
+                    userContent="Tasks"
+                    fallback="Tasks"
+                  />
                 </button>
-              )}
-              <button 
-                onClick={() => {
-                  handleClose();
-                  navigate(`/add-tasks/${projectId}`);
-                }}
-                className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
-              >
-                {userRole === 'USER' ? 'Tasks' : 'Add Tasks'}
-              </button>
               <button 
                 onClick={handleClose}
                 className="text-white/80 hover:text-white"
@@ -198,8 +172,8 @@ const Home = () => {
         if (searchTerm.length >= 4) {
           setIsSearching(prev => ({ ...prev, [index]: true }));
           try {
-            const response = await fetch(`http://localhost:8080/finduser?name=${searchTerm}`);
-            const data = await response.json();
+            const response = await userApi.get(`/finduser?name=${searchTerm}`);
+            const data = response.data;
             setSearchResults(prev => ({ ...prev, [index]: data }));
           } catch (error) {
             console.error('Error searching users:', error);
@@ -217,21 +191,11 @@ const Home = () => {
       e.preventDefault();
       
       try {
-        const response = await fetch('http://localhost:8081/newproject', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...formData,
-            moderator: userId,
-            current_member_count: formData.members.filter(m => m).length
-          }),
+        const response = await projectApi.post('/newproject', {
+          ...formData,
+          moderator: user.id,
+          current_member_count: formData.members.filter(m => m).length
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to create project');
-        }
 
         await fetchProjects();
         onClose();
@@ -454,7 +418,7 @@ const Home = () => {
               {isGridView ? 'Switch to List View' : 'Switch to Grid View'}
             </button>
             
-            {userRole === 'MANAGER' && (
+            <ManagerOnly>
               <button
                 onClick={() => setShowNewProjectModal(true)}
                 className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium 
@@ -462,7 +426,7 @@ const Home = () => {
               >
                 New Project
               </button>
-            )}
+            </ManagerOnly>
           </div>
         </div>
 

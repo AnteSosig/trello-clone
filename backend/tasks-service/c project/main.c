@@ -5,6 +5,7 @@
 #include <cjson/cJSON.h>
 #include "model.h"
 #include "repo.h"
+#include "jwt_middleware.h"
 
 #define PORT 8082
 
@@ -24,7 +25,7 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
         MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
-        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type");
+        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return ret;
@@ -59,6 +60,17 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
     // Handle task creation
     if (strcmp(url, "/tasks") == 0 && strcmp(method, "POST") == 0) {
         printf("Handling POST request for /tasks\n");
+        
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to create tasks (only MANAGER allowed)
+        if (check_permission(&auth, PERM_CREATE_TASKS) != 0) {
+            return send_forbidden_response(connection, "Only managers can create tasks");
+        }
 
         if (!conn_info->json_data) {
             const char* error_response = "{\"error\": \"No data received\"}";
@@ -125,6 +137,18 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
     printf("DEBUG: Checking generic handler for URL: %s\n", url);
     if (strncmp(url, "/tasks/project/", 14) == 0 && strcmp(method, "GET") == 0 && strstr(url, "/member/") == NULL) {
         printf("Matched: /tasks/project/{project_id}\n");
+        
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to read tasks
+        if (check_permission(&auth, PERM_READ_TASKS) != 0) {
+            return send_forbidden_response(connection, "Cannot access tasks");
+        }
+        
         const char* project_id = url + 14;  // Skip "/tasks/project/"
         
         // Skip any leading forward slash
@@ -133,8 +157,24 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         }
         
         printf("Extracted project_id: %s\n", project_id);
+        printf("Authenticated user: %s with role: %s\n", auth.user_id, auth.role);
         
-        char* tasks = get_tasks_by_project(project_id);
+        char* tasks = NULL;
+        
+        // Role-based access control
+        if (strcmp(auth.role, "MANAGER") == 0) {
+            // Managers can see all tasks in the project
+            printf("Manager access: fetching all tasks for project\n");
+            tasks = get_tasks_by_project(project_id);
+        } else if (strcmp(auth.role, "USER") == 0) {
+            // Users can only see tasks they're involved in (creator or member)
+            // For now, let's simplify and just get user-specific tasks without project validation
+            // since the project validation is causing crashes
+            printf("User access: fetching user-specific tasks without project validation\n");
+            tasks = get_user_tasks_by_project(project_id, auth.user_id);
+        } else {
+            return send_forbidden_response(connection, "Invalid role for task access");
+        }
         
         if (tasks) {
             struct MHD_Response* response = MHD_create_response_from_buffer(
@@ -164,12 +204,29 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
 
     // Update task status
     if (strncmp(url, "/tasks/status/", 13) == 0 && strcmp(method, "PATCH") == 0) {
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // For task status updates, we need to check if user can update this specific task
+        // We'll validate this after we extract the task_id and check task membership
+        
         const char* task_id = url + 13;  // Skip "/tasks/status/"
         // Skip any leading forward slash
         while (*task_id == '/') {
             task_id++;
         }
         printf("Processing status update for task ID: %s\n", task_id);
+
+        // Check if user can update this specific task
+        // MANAGERS can update any task, USERs can only update tasks they're involved in
+        if (strcmp(auth.role, "MANAGER") != 0) {
+            if (can_user_update_task(task_id, auth.user_id) != 0) {
+                return send_forbidden_response(connection, "You can only update status of tasks you're assigned to or created");
+            }
+        }
 
         if (!conn_info->json_data) {
             const char* error_response = "{\"error\": \"No data received\"}";
@@ -272,6 +329,17 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
 
     // Update task members
     if (strncmp(url, "/tasks/members/", 14) == 0 && strcmp(method, "PATCH") == 0) {
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to assign tasks (only MANAGER allowed)
+        if (check_permission(&auth, PERM_ASSIGN_TASKS) != 0) {
+            return send_forbidden_response(connection, "Only managers can assign tasks to members");
+        }
+        
         const char* task_id = url + 14;  // Skip "/tasks/members/"
         // Skip any leading forward slash
         while (*task_id == '/') {

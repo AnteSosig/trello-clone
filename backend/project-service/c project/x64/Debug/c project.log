@@ -1,2 +1,5 @@
-﻿  main.c
-C:\Users\krist\OneDrive\Desktop\New folder (2)\trello-clone\backend\project-service\c project\main.c(380,9): warning C4133: 'function': incompatible types - from 'int (__cdecl *)(void *,MHD_Connection *,const char *,const char *,const char *,const char *,size_t *,void **)' to 'MHD_AccessHandlerCallback'
+﻿  repo.c
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\project-service\c project\repo.c(260,18): warning C4101: 'error': unreferenced local variable
+  c project.vcxproj -> C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\project-service\x64\Debug\c project.exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.
