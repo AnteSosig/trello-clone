@@ -1,0 +1,42 @@
+services:
+    api-gateway:
+        build: ./api-gateway
+        environment:
+            PORT: ${GATEWAY_PORT}
+            SERVICES: ${SERVICES}
+            USER_PORT: ${USER_PORT}
+            PROJECT_PORT: ${PROJECT_PORT}
+        ports:
+            - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+
+    user-service:
+        build: ./user-service
+        environment:
+            PORT: ${USER_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            DBURI: ${DBURI}
+            MAIL_FROM: ${MAIL_FROM}
+            PASSKEY: ${PASSKEY}
+        ports:
+            - "${USER_PORT}:${USER_PORT}"
+
+    project-service:
+        build: ./project-service
+        environment:
+            PORT: ${PROJECT_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            DBURI: ${DBURI}
+        ports:
+            - "${PROJECT_PORT}:${PROJECT_PORT}"
+
+    mongodb:
+        image: mongo:7.0
+        ports:
+            - "27017:27017"
+        volumes:
+            # - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+            - mongo_data:/data/db
+
+volumes:
+    mongo_data:
+        driver: local

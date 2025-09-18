@@ -32,7 +32,7 @@ const Navbar = () => {
               />
             </svg>
             <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 text-transparent bg-clip-text">
-              Trello Clone
+              Trelloc
             </span>
           </Link>
 

@@ -46,7 +46,11 @@ const Register = () => {
         role: formData.role
       };
 
-      const response = await userApi.post('/newuser', userPayload);
+      const response = await axios.post('https://localhost:8443/user/newuser', userPayload, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
       setSuccess('Uspešno ste se registrovali! Proverite email za aktivaciju.');
       setError('');
