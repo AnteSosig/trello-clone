@@ -8,6 +8,8 @@
 #include "algs.h"
 #include "encode.h"
 #include "decode.h"
+#include "jwt_middleware.h"
+#include "password_validator.h"
 
 #define PORT 8080
 
@@ -94,7 +96,7 @@ int return_recovery_link(void* cls, enum MHD_ValueKind kind, const char* key, co
 int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
     struct Usersearch* userstruct = (struct Usersearch*)cls;
-    printf("number of prefilled nigger results: %d\n", *userstruct->number_of_results);
+    printf("number of prefilled results: %d\n", *userstruct->number_of_results);
 
     if (key && value) {
         if (strcmp(key, "name") == 0) {
@@ -173,9 +175,9 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             }
 
             User user;
-            if (parse_user_from_json(json, &user) == 0) {
-                int add_user_code = adduser(&user);
-                if (add_user_code == 0) {
+            int parse_result = parse_user_from_json(json, &user);
+            if (parse_result == 0) {
+                if (adduser(&user) == 0) {
                     const char* response_str = "User data received";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
                         (void*)response_str, MHD_RESPMEM_PERSISTENT);
@@ -183,17 +185,31 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
                     MHD_destroy_response(response);
                     printf("KKKKKKKKKKKKK.\n");
-                }
-                else {
-                    const char* response_str = "User not added";
-                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
-                        (void*)response_str, MHD_RESPMEM_PERSISTENT);
+                } else {
+                    const char* error_response = "User not added";
+                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                        (void*)error_response, MHD_RESPMEM_PERSISTENT);
                     MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
                     int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
                     MHD_destroy_response(response);
                 }
-            }
-            else {
+            } else if (parse_result == PASSWORD_TOO_SHORT || parse_result == PASSWORD_TOO_COMMON || parse_result == PASSWORD_INVALID_CHARS) {
+                // Handle password validation errors specifically
+                const char* error_message = get_password_error_message(parse_result);
+                cJSON* error_json = cJSON_CreateObject();
+                cJSON_AddStringToObject(error_json, "error", "Password validation failed");
+                cJSON_AddStringToObject(error_json, "message", error_message);
+                char* error_response = cJSON_Print(error_json);
+                
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_MUST_FREE);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                MHD_add_response_header(response, "Content-Type", "application/json");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(error_json);
+                printf("Password validation failed: %s\n", error_message);
+            } else {
                 const char* error_response = "Missing or invalid fields";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
                     (void*)error_response, MHD_RESPMEM_PERSISTENT);
@@ -210,6 +226,115 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             printf("LLLLLLLLLLLLL.\n");
             return MHD_YES;
         }
+    }
+
+    if (strcmp(url, "/profile") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to read user data
+        if (check_permission(&auth, PERM_READ_USERS) != 0) {
+            return send_forbidden_response(connection, "Cannot access user profile");
+        }
+        
+        // Create response with user information
+        cJSON* profile = cJSON_CreateObject();
+        cJSON_AddStringToObject(profile, "user_id", auth.user_id);
+        cJSON_AddStringToObject(profile, "role", auth.role);
+        cJSON_AddStringToObject(profile, "status", "authenticated");
+        
+        char* profile_json = cJSON_Print(profile);
+        cJSON_Delete(profile);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(profile_json),
+            profile_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(profile_json);
+        
+        return ret;
+    }
+
+    if (strcmp(url, "/admin/users") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check admin permission
+        if (check_permission(&auth, PERM_ADMIN_ONLY) != 0) {
+            return send_forbidden_response(connection, "Admin access required");
+        }
+        
+        // Create admin response
+        cJSON* admin_data = cJSON_CreateObject();
+        cJSON_AddStringToObject(admin_data, "message", "Admin access granted");
+        cJSON_AddStringToObject(admin_data, "admin_user", auth.user_id);
+        cJSON_AddStringToObject(admin_data, "role", auth.role);
+        
+        char* admin_json = cJSON_Print(admin_data);
+        cJSON_Delete(admin_data);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(admin_json),
+            admin_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(admin_json);
+        
+        return ret;
+    }
+
+    if (strcmp(url, "/auth/verify") == 0 && strcmp(method, "GET") == 0) {
+        AuthContext auth;
+        
+        // Authenticate the request
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Create verification response
+        cJSON* verify_data = cJSON_CreateObject();
+        cJSON_AddStringToObject(verify_data, "valid", "true");
+        cJSON_AddStringToObject(verify_data, "user_id", auth.user_id);
+        cJSON_AddStringToObject(verify_data, "role", auth.role);
+        
+        char* verify_json = cJSON_Print(verify_data);
+        cJSON_Delete(verify_data);
+        
+        struct MHD_Response* response = MHD_create_response_from_buffer(
+            strlen(verify_json),
+            verify_json,
+            MHD_RESPMEM_MUST_COPY
+        );
+        
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Content-Type", "application/json");
+        
+        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        free(verify_json);
+        
+        return ret;
     }
 
     if (strcmp(url, "/activate") == 0) {
@@ -356,16 +481,15 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             .size = size,
             .number_of_results = &number_of_results
         };
-        printf("number of prefilled nigger results: %d\n", *foundusers.number_of_results);
+        printf("number of prefilled results: %d\n", *foundusers.number_of_results);
 
         MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_search_parameters, &foundusers);
 
         if (!foundusers.number_of_results) {
-            printf("nigga\n");
+            printf("work pls\n");
         }
         else {
-            printf("faggot\n");
-            printf("number of nigger results: %d\n", *foundusers.number_of_results);
+            printf("number of results: %d\n", *foundusers.number_of_results);
         }
 
         char* response_str = (char*)malloc(1024);
@@ -457,7 +581,6 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             const char *var_name = "HMAC_KEY";
             char *hmac_key = getenv(var_name);
-            printf("KREK NIGERSKI\n");
 
             struct l8w8jwt_decoding_params params;
             l8w8jwt_decoding_params_init(&params);
@@ -483,8 +606,6 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             struct l8w8jwt_claim* claims = NULL;
             size_t claims_len = 0;
-
-            printf("KREK NIGERSKI\n");
 
             int decode_result = l8w8jwt_decode(&params, &validation_result, &claims, &claims_len);
             printf("decode_result=%d, validation_result=%d, claims_len=%zu\n", decode_result, validation_result, claims_len);
