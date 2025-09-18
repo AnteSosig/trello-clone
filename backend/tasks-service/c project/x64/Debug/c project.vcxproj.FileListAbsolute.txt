@@ -1,0 +1,6 @@
+C:\Users\Smosman\Desktop\c projekat\c project\c project\x64\Debug\c project.vcxproj.CopyComplete
+C:\Users\krist\OneDrive\Desktop\NOVI\trello-clone\c project\c project\x64\Debug\c project.vcxproj.Up2Date
+C:\Users\krist\OneDrive\Desktop\NOVI\trello-clone\projects\c project\x64\Debug\c project.vcxproj.Up2Date
+C:\Users\Smosman\Documents\GitHub\trello-clone\backend\project-service\c project\x64\Debug\c project.vcxproj.CopyComplete
+C:\Users\krist\OneDrive\Documents\GitHub\trello-clone\backend\tasks-service\c project\x64\Debug\c project.vcxproj.Up2Date
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\tasks-service\c project\x64\Debug\c project.vcxproj.Up2Date

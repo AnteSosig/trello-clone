@@ -219,7 +219,7 @@ int emailto(char email[], FILE* payload_file) {
         //hardcoded for now
         curl_easy_setopt(curl, CURLOPT_USERNAME, "nikola.birclin@gmail.com");
         //hardcoded for now :(
-        curl_easy_setopt(curl, CURLOPT_PASSWORD, "rjxx axrp qkye vsee");
+        curl_easy_setopt(curl, CURLOPT_PASSWORD, "gnei rjsq rdev ppww");
         //hardcoded for now
         curl_easy_setopt(curl, CURLOPT_MAIL_FROM, "nikola.birclin@gmail.com");
 

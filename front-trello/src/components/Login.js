@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -39,10 +41,8 @@ const LoginForm = () => {
       console.log('Response data:', data);
       
       // Set cookies with expiration
-      const expirationInSeconds = data.expires || 3600; // default 1 hour if not provided
-      const expirationInDays = expirationInSeconds / (24 * 60 * 60); // Convert seconds to days
-
-      console.log('Setting cookies with expiration (days):', expirationInDays);
+      const expirationInSeconds = data.expires || 3600;
+      const expirationInDays = expirationInSeconds / (24 * 60 * 60);
 
       Cookies.set('token', data.token, { 
         expires: expirationInDays,
@@ -59,15 +59,17 @@ const LoginForm = () => {
         sameSite: 'strict'
       });
 
-      console.log('Stored Cookies:');
-      console.log('Token:', Cookies.get('token'));
-      console.log('Role:', Cookies.get('role'));
-      console.log('Session Expiration:', Cookies.get('sessionExpiration'));
-      
-      // Or log all cookies at once
-      console.log('All Cookies:', Cookies.get());
-
-      setSuccessMessage('Uspešno ste ulogovani.');
+      // Update auth context
+      if (login(data.token, data.role)) {
+        setSuccessMessage('Uspešno ste ulogovani.');
+        
+        // Add a small delay before redirecting to show the success message
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 1000);
+      } else {
+        setError('Failed to process login data');
+      }
       
       // Redirect to home page after successful login and refresh
       setTimeout(() => {

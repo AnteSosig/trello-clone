@@ -134,13 +134,17 @@
   <ItemGroup>
     <ClCompile Include="main.c" />
     <ClCompile Include="repo.c" />
-    <ClCompile Include="model.h" />
-    <ClCompile Include="repo.h" />
     <ClCompile Include="model.c" />
     <ClCompile Include="SHA.c" />
+    <ClCompile Include="jwt_middleware.c" />
+    <ClCompile Include="password_validator.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="model.h" />
+    <ClInclude Include="repo.h" />
     <ClInclude Include="SHA.h" />
+    <ClInclude Include="jwt_middleware.h" />
+    <ClInclude Include="password_validator.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

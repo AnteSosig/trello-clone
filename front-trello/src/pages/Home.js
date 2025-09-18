@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
-import { jwtDecode } from "jwt-decode";
+import { projectApi, userApi } from '../utils/axios';
+import { useAuth } from '../contexts/AuthContext';
+import { ManagerOnly, RoleSwitch } from '../components/RoleBasedRender';
 
 const Home = () => {
   const [isGridView, setIsGridView] = useState(true);
@@ -10,17 +12,13 @@ const Home = () => {
   const [error, setError] = useState(null);
   const [selectedCard, setSelectedCard] = useState(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [userId, setUserId] = useState(null);
+  const { user, isManager } = useAuth();
 
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8081/projects');
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-      const data = await response.json();
+      const response = await projectApi.get('/projects');
+      const data = response.data;
       
       const transformedData = data.map(project => ({
         ...project,
@@ -30,17 +28,17 @@ const Home = () => {
       }));
       
       const filteredData = transformedData.filter(project => {
-        if (userRole === 'MANAGER') {
-          return project.moderator === userId;
-        } else if (userRole === 'USER') {
-          return project.members.includes(userId);
+        if (user.role === 'MANAGER') {
+          return project.moderator === user.id;
+        } else if (user.role === 'USER') {
+          return project.members.includes(user.id);
         }
         return false;
       });
       
       console.log('All projects:', data);
       console.log('Filtered projects:', filteredData);
-      console.log('Current user ID:', userId);
+      console.log('Current user ID:', user.id);
       setCards(filteredData);
     } catch (err) {
       console.error('Error fetching projects:', err);
@@ -48,41 +46,13 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, userRole]);
+  }, [user]);
 
   useEffect(() => {
-    try {
-      const tokenCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('token='));
-      
-      if (!tokenCookie) {
-        console.error('No token found in cookies');
-        setError('Authentication required');
-        setLoading(false);
-        return;
-      }
-
-      const token = tokenCookie.split('=')[1];
-      const decodedToken = jwtDecode(token);
-      console.log('Decoded token:', decodedToken);
-      setUserRole(decodedToken.aud);
-      setUserId(decodedToken.sub);
-      console.log('User ID set to:', decodedToken.sub);
-
-      fetchProjects();
-    } catch (err) {
-      console.error('Error processing token:', err);
-      setError('Authentication error');
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (userId && userRole) {
+    if (user) {
       fetchProjects();
     }
-  }, [userId, userRole, fetchProjects]);
+  }, [user, fetchProjects]);
 
   if (loading) {
     return (
@@ -102,10 +72,33 @@ const Home = () => {
 
   const DetailModal = ({ card, onClose }) => {
     const navigate = useNavigate();
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const handleClose = () => {
       onClose();
       fetchProjects();
+    };
+
+    const handleDelete = async () => {
+      try {
+        setDeleting(true);
+        await projectApi.delete(`/deleteproject/${projectId}`);
+        alert('Project deleted successfully!');
+        handleClose();
+      } catch (err) {
+        console.error('Delete error:', err);
+        if (err.response?.status === 400) {
+          alert('Cannot delete project - it has unfinished tasks');
+        } else if (err.response?.status === 403) {
+          alert('Access denied - only managers can delete projects');
+        } else {
+          alert('Failed to delete project: ' + (err.response?.data?.message || err.message));
+        }
+      } finally {
+        setDeleting(false);
+        setShowDeleteConfirm(false);
+      }
     };
 
     if (!card) return null;
@@ -115,18 +108,33 @@ const Home = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 max-w-2xl w-full shadow-2xl border border-white/20">
-          <div className="flex justify-between items-start mb-6">
-            <h2 className="text-3xl font-bold text-white">{card.project}</h2>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => {
-                  handleClose();
-                  navigate(`/edit-project/${projectId}`);
-                }}
-                className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
-              >
-                Edit Members
-              </button>
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-3xl font-bold text-white">{card.project}</h2>
+              <div className="flex gap-4">
+                <ManagerOnly>
+                  <button 
+                    onClick={() => {
+                      handleClose();
+                      navigate(`/edit-project/${projectId}`);
+                    }}
+                    className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                  >
+                    Edit Members
+                  </button>
+                </ManagerOnly>
+                <button 
+                  onClick={() => {
+                    handleClose();
+                    navigate(`/add-tasks/${projectId}`);
+                  }}
+                  className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                >
+                  <RoleSwitch 
+                    managerContent="Add Tasks"
+                    userContent="Tasks"
+                    fallback="Tasks"
+                  />
+                </button>
               <button 
                 onClick={handleClose}
                 className="text-white/80 hover:text-white"
@@ -165,7 +173,48 @@ const Home = () => {
                 ))}
               </ul>
             </div>
+
+            <div className="text-white/90">
+              <p className="font-semibold">Status:</p>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                card.status === 1 
+                  ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+              }`}>
+                {card.status === 1 ? 'Completed' : 'Active'}
+              </span>
+            </div>
           </div>
+
+          {/* Delete Button - Bottom Right */}
+          {isManager() && (
+            <div className="flex justify-end mt-6">
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-4 py-2 bg-red-600/20 text-red-300 border border-red-400/30 rounded-lg hover:bg-red-600/30 transition-colors"
+                >
+                  Delete Project
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-4 py-2 bg-gray-600/20 text-gray-300 border border-gray-400/30 rounded-lg hover:bg-gray-600/30 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting...' : 'Confirm Delete'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -187,8 +236,8 @@ const Home = () => {
         if (searchTerm.length >= 4) {
           setIsSearching(prev => ({ ...prev, [index]: true }));
           try {
-            const response = await fetch(`http://localhost:8080/finduser?name=${searchTerm}`);
-            const data = await response.json();
+            const response = await userApi.get(`/finduser?name=${searchTerm}`);
+            const data = response.data;
             setSearchResults(prev => ({ ...prev, [index]: data }));
           } catch (error) {
             console.error('Error searching users:', error);
@@ -206,21 +255,11 @@ const Home = () => {
       e.preventDefault();
       
       try {
-        const response = await fetch('http://localhost:8081/newproject', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...formData,
-            moderator: userId,
-            current_member_count: formData.members.filter(m => m).length
-          }),
+        const response = await projectApi.post('/newproject', {
+          ...formData,
+          moderator: user.id,
+          current_member_count: formData.members.filter(m => m).length
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to create project');
-        }
 
         await fetchProjects();
         onClose();
@@ -430,7 +469,7 @@ const Home = () => {
             Dobrodosli na Trello Clone
           </h1>
           <p className="text-xl text-white/90 leading-relaxed mb-6">
-            Svi projekti za vase prijatelje i gejmere na jednom mestu
+            
           </p>
           
           {/* View Toggle and New Project Buttons */}
@@ -443,7 +482,7 @@ const Home = () => {
               {isGridView ? 'Switch to List View' : 'Switch to Grid View'}
             </button>
             
-            {userRole === 'MANAGER' && (
+            <ManagerOnly>
               <button
                 onClick={() => setShowNewProjectModal(true)}
                 className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium 
@@ -451,7 +490,7 @@ const Home = () => {
               >
                 New Project
               </button>
-            )}
+            </ManagerOnly>
           </div>
         </div>
 
@@ -479,7 +518,16 @@ const Home = () => {
                         Members: {card.current_member_count}/{card.max_members}
                       </p>
                     </div>
-                    <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-6 left-6 right-6 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          card.status === 1 
+                            ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+                            : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+                        }`}>
+                          {card.status === 1 ? 'Completed' : 'Active'}
+                        </span>
+                      </div>
                       <button 
                         onClick={() => setSelectedCard(card)}
                         className="px-4 py-1 bg-white/20 text-white rounded-full text-sm
@@ -490,14 +538,23 @@ const Home = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="flex justify-between items-start w-full">
-                    <div>
-                      <h3 className="text-xl font-semibold text-white mb-2">
-                        {card.project}
-                      </h3>
-                      <p className="text-white/80">
-                        Members: {card.current_member_count}/{card.max_members}
-                      </p>
+                  <div className="flex justify-between items-center w-full h-full">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <h3 className="text-xl font-semibold text-white mb-2">
+                          {card.project}
+                        </h3>
+                        <p className="text-white/80">
+                          Members: {card.current_member_count}/{card.max_members}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        card.status === 1 
+                          ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+                          : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+                      }`}>
+                        {card.status === 1 ? 'Completed' : 'Active'}
+                      </span>
                     </div>
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-4">
                       <button 
