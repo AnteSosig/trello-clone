@@ -952,10 +952,10 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
                 if (recovery_link) {
 
-                    int alterpassword_code = alterpassword(recovery_link, new_password->valuestring);
+                    int recover_password_code = recoverpassword(recovery_link, new_password->valuestring);
                     fprintf(stderr, "Recovery pls\n");
 
-                    if (!alterpassword_code) {
+                    if (!recover_password_code) {
                         struct MHD_Response* response;
                         const char* response_text = "Password changed";
                         response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
