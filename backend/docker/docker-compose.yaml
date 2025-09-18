@@ -6,6 +6,7 @@ services:
             SERVICES: ${SERVICES}
             USER_PORT: ${USER_PORT}
             PROJECT_PORT: ${PROJECT_PORT}
+            TASK_PORT: ${TASK_PORT}
         ports:
             - "${GATEWAY_PORT}:${GATEWAY_PORT}"
 

@@ -22,7 +22,7 @@ RUN git clone --recursive https://github.com/GlitchedPolygons/l8w8jwt.git tmp &&
     cd ../.. && \
     mv ./tmp/build ./l8w8jwt && \
     rm -rf ./tmp && \
-    gcc SHA.c model.c repo.c main.c \
+    gcc SHA.c password_validator.c model.c repo.c jwt_middleware.c main.c \
     -Il8w8jwt/l8w8jwt/include/l8w8jwt \
     -Wl,-Bstatic \
         l8w8jwt/l8w8jwt/bin/release/libl8w8jwt.a \

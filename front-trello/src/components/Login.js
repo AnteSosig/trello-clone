@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Cookies from 'js-cookie';
 import { useNavigate, useLocation } from 'react-router-dom';
+import Cookies from 'js-cookie';
 import { useAuth } from '../contexts/AuthContext';
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [username_or_email, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -62,6 +63,9 @@ const LoginForm = () => {
       // Update auth context
       if (login(data.token, data.role)) {
         setSuccessMessage('Uspešno ste ulogovani.');
+        
+        // Get the intended destination from location state or default to home
+        const from = location.state?.from?.pathname || '/';
         
         // Add a small delay before redirecting to show the success message
         setTimeout(() => {

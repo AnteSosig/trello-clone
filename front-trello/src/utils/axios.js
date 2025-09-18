@@ -29,9 +29,9 @@ const createApiInstance = (baseURL) => {
 };
 
 // API instances for each service
-export const userApi = createApiInstance('http://localhost:8080');
-export const projectApi = createApiInstance('http://localhost:8081');
-export const taskApi = createApiInstance('http://localhost:8082');
+export const userApi = createApiInstance('http://localhost:8443/user');
+export const projectApi = createApiInstance('http://localhost:8443/project');
+export const taskApi = createApiInstance('http://localhost:8443/task');
 
 // Default export for backward compatibility (user service)
 export default userApi; 

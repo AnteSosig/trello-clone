@@ -30,14 +30,10 @@ int init_password_validator(void) {
         return 0; // Already initialized
     }
 
-    FILE* file = fopen("../common_passwords.txt", "r");
+    FILE* file = fopen("common_passwords.txt", "r");
     if (file == NULL) {
-        // Try alternative path
-        file = fopen("common_passwords.txt", "r");
-        if (file == NULL) {
-            printf("Warning: Could not open common_passwords.txt. Password blacklist disabled.\n");
-            return -1;
-        }
+    	fprintf(stderr, "Warning: Could not open common_passwords.txt. Password blacklist disabled.\n");
+    	return -1;
     }
 
     char line[MAX_PASSWORD_LENGTH];
