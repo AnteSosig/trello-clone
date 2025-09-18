@@ -1,0 +1,10 @@
+^C:\USERS\SMOSMAN\DESKTOP\L8W8JWT\LIB\MBEDTLS\3RDPARTY\EVEREST\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Smosman/Desktop/l8w8jwt -BC:/Users/Smosman/Desktop/l8w8jwt/build --check-stamp-file C:/Users/Smosman/Desktop/l8w8jwt/build/mbedtls/3rdparty/everest/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

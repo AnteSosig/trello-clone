@@ -1,0 +1,9 @@
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\pkcs7.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\pkcs7.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509_create.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509_create.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509_crl.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509_crl.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509_crt.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509_crt.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509_csr.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509_csr.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509write.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509write.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509write_crt.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509write_crt.obj
+C:\Users\Smosman\Desktop\l8w8jwt\lib\mbedtls\library\x509write_csr.c;C:\Users\Smosman\Desktop\l8w8jwt\build\mbedtls\library\mbedx509.dir\Release\x509write_csr.obj
