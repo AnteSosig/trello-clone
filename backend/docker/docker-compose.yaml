@@ -29,6 +29,15 @@ services:
         ports:
             - "${PROJECT_PORT}:${PROJECT_PORT}"
 
+    task-service:
+        build: ./task-service
+        environment:
+            PORT: ${TASK_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            DBURI: ${DBURI}
+        ports:
+            - "${TASK_PORT}:${TASK_PORT}"
+
     mongodb:
         image: mongo:7.0
         ports:

@@ -31,6 +31,6 @@ RUN git clone --recursive https://github.com/GlitchedPolygons/l8w8jwt.git tmp &&
         l8w8jwt/mbedtls/library/libmbedcrypto.a \
     -Wl,-Bdynamic \
         -lcjson -lcurl -lmicrohttpd $(pkg-config --cflags --libs libmongoc-1.0) \
-    -o project_service
+    -o task_service
 
-CMD ["./project_service"]
+CMD ["./task_service"]
