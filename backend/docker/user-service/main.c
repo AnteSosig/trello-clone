@@ -1155,6 +1155,14 @@ int main() {
     }
 
     printf("Server running on port %d\n", port);
+
+    if (init_password_validator() != 0) {
+        printf("Warning: Password validator initialization failed. Weak password checking disabled.\n");
+    } 
+    else {
+        printf("Password validator initialized successfully.\n");
+    } 
+
     repo();
 
     // Run indefinitely (could also add logic to handle graceful shutdowns)
