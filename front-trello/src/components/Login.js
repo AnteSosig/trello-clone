@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 
 const LoginForm = () => {
+  const navigate = useNavigate();
   const [username_or_email, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -62,6 +64,12 @@ const LoginForm = () => {
       console.log('All Cookies:', Cookies.get());
 
       setSuccessMessage('Uspešno ste ulogovani.');
+      
+      // Redirect to home page after successful login and refresh
+      setTimeout(() => {
+        navigate('/');
+        window.location.reload();
+      }, 1000);
       
     } catch (error) {
       console.error('Login error:', error);

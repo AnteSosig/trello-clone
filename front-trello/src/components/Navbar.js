@@ -1,8 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getCookie, isSessionValid, removeCookies } from '../utils/cookies';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check if user is logged in by verifying token and session validity
+    const token = getCookie('token');
+    const sessionValid = isSessionValid();
+    setIsLoggedIn(!!(token && sessionValid));
+  }, []);
+
+  const handleLogout = () => {
+    removeCookies();
+    setIsLoggedIn(false);
+    // Optionally redirect to home page
+    window.location.href = '/';
+  };
 
   return (
     <nav className="bg-white border-b shadow-lg sticky top-0 z-50">
@@ -44,8 +60,23 @@ const Navbar = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">
-            <NavLink to="/login">Prijavi se</NavLink>
-            <NavLink to="/register">Registracija</NavLink>
+            {isLoggedIn ? (
+              <>
+                <NavLink to="/profile">Moj Profil</NavLink>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 text-gray-700 hover:text-emerald-600 rounded-lg hover:bg-gray-50 
+                            transition-all duration-200 font-medium"
+                >
+                  Odjava
+                </button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/login">Prijavi se</NavLink>
+                <NavLink to="/register">Registracija</NavLink>
+              </>
+            )}
             <NavLink to="/pretraga">
               <div className="flex items-center space-x-2">
                 <span>Pretraga</span>
@@ -70,8 +101,23 @@ const Navbar = () => {
         {/* Mobile Navigation */}
         <div className={`md:hidden ${isOpen ? 'block' : 'hidden'} pb-6`}>
           <div className="flex flex-col space-y-2">
-            <MobileNavLink to="/login">Prijavi se</MobileNavLink>
-            <MobileNavLink to="/register">Registracija</MobileNavLink>
+            {isLoggedIn ? (
+              <>
+                <MobileNavLink to="/profile">Moj Profil</MobileNavLink>
+                <button
+                  onClick={handleLogout}
+                  className="block px-4 py-2 text-gray-700 hover:text-emerald-600 hover:bg-gray-50 
+                            transition-colors duration-200 text-left"
+                >
+                  Odjava
+                </button>
+              </>
+            ) : (
+              <>
+                <MobileNavLink to="/login">Prijavi se</MobileNavLink>
+                <MobileNavLink to="/register">Registracija</MobileNavLink>
+              </>
+            )}
             <MobileNavLink to="/pretraga">
               <div className="flex items-center space-x-2">
                 <span>Pretraga</span>
