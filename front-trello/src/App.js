@@ -10,6 +10,7 @@ import EditProject from './pages/EditProject';
 import AccountConfirm from './pages/AccountConfirm';
 import Profile from './pages/Profile';
 import ChangePassword from './pages/ChangePassword';
+import PasswordRecovery from './pages/PasswordRecovery';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/edit-project/:id" element={<EditProject />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/recovery" element={<PasswordRecovery />} />
         <Route path="*" element={<NotFound />} />
         <Route path="/activate" element={<AccountConfirm />} />
       </Routes>

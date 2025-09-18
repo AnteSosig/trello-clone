@@ -1382,7 +1382,7 @@ int find_user_and_send_recovery(const char *email) {
                 "From: trello clone\r\n"
                 "Subject: Email Verification\r\n"
                 "\r\n"
-                "Vasa veza za oporavak naloga: http://localhost:3000/magic?link=%s\r\n", user.email, (const char*)activation_link);
+                "Vasa veza za oporavak naloga: http://localhost:3000/recovery?link=%s\r\n", user.email, (const char*)activation_link);
             fclose(payload_file);
             fprintf(repo->logger, "Written to the payload file.\n");
             printf("Written to the payload file.\n");

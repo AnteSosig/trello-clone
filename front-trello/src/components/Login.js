@@ -8,6 +8,10 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showRecoveryForm, setShowRecoveryForm] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoverySuccess, setRecoverySuccess] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -77,6 +81,44 @@ const LoginForm = () => {
     }
   };
 
+  const handlePasswordRecovery = async (e) => {
+    e.preventDefault();
+    setRecoveryError('');
+    setRecoverySuccess('');
+
+    if (!recoveryEmail) {
+      setRecoveryError('Molimo unesite email adresu.');
+      return;
+    }
+
+    try {
+      const response = await fetch('https://localhost:8443/user/recoverpassword', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: recoveryEmail }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Greška prilikom slanja zahteva za oporavak lozinke.');
+      }
+
+      setRecoverySuccess('Zahtev za oporavak lozinke je uspešno poslat. Proverite svoj email.');
+      setRecoveryEmail('');
+      
+      // Hide recovery form after 3 seconds
+      setTimeout(() => {
+        setShowRecoveryForm(false);
+        setRecoverySuccess('');
+      }, 3000);
+
+    } catch (error) {
+      console.error('Password recovery error:', error);
+      setRecoveryError(error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto bg-white/10 backdrop-blur-lg rounded-xl p-8 shadow-2xl">
@@ -139,6 +181,81 @@ const LoginForm = () => {
             Prijavi se
           </button>
         </form>
+
+        {/* Password Recovery Button */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowRecoveryForm(!showRecoveryForm)}
+            className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg 
+                     hover:bg-emerald-700 transition-colors duration-200 font-medium"
+          >
+            Oporavak lozinke
+          </button>
+        </div>
+
+        {/* Password Recovery Form */}
+        {showRecoveryForm && (
+          <div className="mt-6 p-6 bg-white/5 backdrop-blur-lg rounded-lg border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-4 text-center">
+              Oporavak lozinke
+            </h3>
+
+            {recoveryError && (
+              <div className="mb-4 p-4 bg-red-500/20 backdrop-blur-lg border border-red-500/50 rounded-lg text-white">
+                {recoveryError}
+              </div>
+            )}
+            
+            {recoverySuccess && (
+              <div className="mb-4 p-4 bg-green-500/20 backdrop-blur-lg border border-green-500/50 rounded-lg text-white">
+                {recoverySuccess}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordRecovery} className="space-y-4">
+              <div>
+                <label htmlFor="recovery_email" className="block text-sm font-medium text-white mb-2">
+                  Email adresa
+                </label>
+                <input
+                  type="email"
+                  id="recovery_email"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg 
+                           text-white placeholder-white/50 focus:outline-none focus:ring-2 
+                           focus:ring-emerald-500 focus:border-transparent backdrop-blur-lg"
+                  placeholder="Unesite vašu email adresu"
+                  required
+                />
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg 
+                           hover:bg-emerald-700 transition-colors duration-200 font-medium"
+                >
+                  Pošalji zahtev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecoveryForm(false);
+                    setRecoveryEmail('');
+                    setRecoveryError('');
+                    setRecoverySuccess('');
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg 
+                           hover:bg-gray-700 transition-colors duration-200 font-medium"
+                >
+                  Otkaži
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
