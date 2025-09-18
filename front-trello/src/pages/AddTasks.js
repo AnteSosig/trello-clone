@@ -19,6 +19,10 @@ const AddTasks = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [memberAction, setMemberAction] = useState(''); // 'add' or 'remove'
+  const [selectedMember, setSelectedMember] = useState('');
   const { user, isManager } = useAuth();
   const { permissions } = usePermissions();
 
@@ -132,6 +136,78 @@ const AddTasks = () => {
     }
   };
 
+  const handleAddMember = (taskId) => {
+    setSelectedTaskId(taskId);
+    setMemberAction('add');
+    setSelectedMember('');
+    setShowMemberModal(true);
+  };
+
+  const handleRemoveMember = (taskId) => {
+    setSelectedTaskId(taskId);
+    setMemberAction('remove');
+    setSelectedMember('');
+    setShowMemberModal(true);
+  };
+
+  const submitMemberAction = async () => {
+    if (!selectedMember || !selectedTaskId) {
+      setError('Please select a member');
+      return;
+    }
+
+    try {
+      setError('');
+      setSuccess('');
+
+      const endpoint = memberAction === 'add' 
+        ? `/tasks/${selectedTaskId}/add-member`
+        : `/tasks/${selectedTaskId}/remove-member`;
+
+      await taskApi.post(endpoint, { member_id: selectedMember });
+
+      // Refetch tasks to update UI
+      const tasksResponse = await taskApi.get(`/tasks/project/${projectId}`);
+      setTasks(tasksResponse.data);
+
+      setSuccess(`Member ${memberAction === 'add' ? 'added to' : 'removed from'} task successfully`);
+      setShowMemberModal(false);
+      setSelectedTaskId(null);
+      setSelectedMember('');
+
+    } catch (err) {
+      console.error(`Error ${memberAction}ing member:`, err);
+      if (err.response?.status === 400) {
+        if (memberAction === 'add') {
+          setError('User is not a member of this project');
+        } else {
+          setError('Cannot remove member from completed task');
+        }
+      } else if (err.response?.status === 403) {
+        setError('Access denied - only managers can modify task members');
+      } else {
+        setError(`Failed to ${memberAction} member: ${err.response?.data?.error || err.message}`);
+      }
+    }
+  };
+
+  const getAvailableMembers = () => {
+    if (!projectData?.members) return [];
+    
+    if (memberAction === 'add') {
+      // For adding: show all project members
+      return projectData.members;
+    } else {
+      // For removing: show only members currently assigned to the task
+      const currentTask = tasks.find(task => getTaskId(task) === selectedTaskId);
+      return currentTask?.members || [];
+    }
+  };
+
+  const canModifyMembers = (task) => {
+    return isManager && task.status !== 2; // Can modify if manager and task not completed
+  };
+
   // Define a mapping for status codes to strings
   const STATUS_MAP = {
     0: "pending",
@@ -204,8 +280,9 @@ const AddTasks = () => {
               tasks.map((task, index) => (
                 <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
                   <h4 className="text-xl font-semibold text-white mb-2">{task.name}</h4>
-                  <p className="text-white/90 mb-2">{task.description}</p>
-                  <div className="flex justify-between items-center">
+                  <p className="text-white/90 mb-3">{task.description}</p>
+                  
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                     <div className="text-white/80 flex items-center">
                       <span className="font-semibold">Status:</span> {" "}
                       {permissions.canUpdateTaskStatus(task.members, task.creator_id) ? (
@@ -220,14 +297,54 @@ const AddTasks = () => {
                           ))}
                         </select>
                       ) : (
-                        <span>{STATUS_LABELS[STATUS_MAP[task.status]]}</span>
+                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                          task.status === 2 ? 'bg-green-500/20 text-green-300' :
+                          task.status === 1 ? 'bg-yellow-500/20 text-yellow-300' :
+                          'bg-gray-500/20 text-gray-300'
+                        }`}>
+                          {STATUS_LABELS[STATUS_MAP[task.status]]}
+                        </span>
                       )}
                     </div>
+                    
                     <div className="text-white/80">
                       <span className="font-semibold">Assigned to:</span>{' '}
-                      {task.members.join(', ')}
+                      {task.members.length > 0 ? task.members.join(', ') : 'No members assigned'}
                     </div>
                   </div>
+
+                  {/* Member Management Buttons */}
+                  {isManager && (
+                    <div className="mt-4 pt-3 border-t border-white/10 flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleAddMember(getTaskId(task))}
+                        className="px-3 py-1 bg-blue-600/20 text-blue-300 border border-blue-400/30 rounded-lg hover:bg-blue-600/30 transition-colors text-sm flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add Member
+                      </button>
+                      
+                      {canModifyMembers(task) && task.members.length > 0 && (
+                        <button
+                          onClick={() => handleRemoveMember(getTaskId(task))}
+                          className="px-3 py-1 bg-red-600/20 text-red-300 border border-red-400/30 rounded-lg hover:bg-red-600/30 transition-colors text-sm flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
+                          Remove Member
+                        </button>
+                      )}
+                      
+                      {task.status === 2 && (
+                        <span className="px-3 py-1 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg text-sm">
+                          Task Completed - Members Locked
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -315,6 +432,88 @@ const AddTasks = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Member Management Modal */}
+        {showMemberModal && isManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 max-w-md w-full shadow-2xl border border-white/20">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-white">
+                  {memberAction === 'add' ? 'Add Member to Task' : 'Remove Member from Task'}
+                </h3>
+                <button 
+                  onClick={() => setShowMemberModal(false)}
+                  className="text-white/80 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 backdrop-blur-lg border border-red-500/50 rounded-lg text-white text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white mb-2">
+                    Select Member to {memberAction === 'add' ? 'Add' : 'Remove'}:
+                  </label>
+                  <select
+                    value={selectedMember}
+                    onChange={(e) => setSelectedMember(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [&>option]:text-gray-900 [&>option]:bg-white"
+                  >
+                    <option value="">-- Select a member --</option>
+                    {getAvailableMembers().map((member) => (
+                      <option key={member} value={member}>
+                        {member}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {memberAction === 'add' && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-400/20 rounded-lg">
+                    <p className="text-blue-300 text-sm">
+                      ℹ️ Only project members can be added to tasks.
+                    </p>
+                  </div>
+                )}
+
+                {memberAction === 'remove' && (
+                  <div className="p-3 bg-yellow-500/10 border border-yellow-400/20 rounded-lg">
+                    <p className="text-yellow-300 text-sm">
+                      ⚠️ Cannot remove members from completed tasks.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMemberModal(false)}
+                    className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitMemberAction}
+                    disabled={!selectedMember}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                      memberAction === 'add' 
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                        : 'bg-red-600 hover:bg-red-700 text-white'
+                    } ${!selectedMember ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {memberAction === 'add' ? 'Add Member' : 'Remove Member'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

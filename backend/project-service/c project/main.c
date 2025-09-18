@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <cjson/cJSON.h>
 #include "model.h"
 #include "repo.h"
@@ -24,7 +25,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
         MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Accept, Authorization");
         MHD_add_response_header(response, "Access-Control-Max-Age", "86400");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
@@ -382,15 +383,130 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             return ret;
         }
 
-        int member_count = cJSON_GetArraySize(members);
-        const char** member_strings = malloc(member_count * sizeof(char*));
-        for (int i = 0; i < member_count; i++) {
-            cJSON* member = cJSON_GetArrayItem(members, i);
-            member_strings[i] = member->valuestring;
+        // Get current project to compare members
+        char* current_project_json = get_project_by_id(project_id);
+        if (current_project_json == NULL) {
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Project not found\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
         }
 
-        int update_result = update_project_members(project_id, member_strings, member_count);
-        free(member_strings);
+        cJSON* current_project = cJSON_Parse(current_project_json);
+        if (current_project == NULL) {
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Failed to parse current project\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            free(current_project_json);
+            return ret;
+        }
+
+        // Get current members
+        cJSON* current_members = cJSON_GetObjectItem(current_project, "members");
+        if (!current_members || !cJSON_IsArray(current_members)) {
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Invalid current project members\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            cJSON_Delete(current_project);
+            free(current_project_json);
+            return ret;
+        }
+
+        // Prepare new member list
+        int new_member_count = cJSON_GetArraySize(members);
+        const char** new_member_strings = malloc(new_member_count * sizeof(char*));
+        for (int i = 0; i < new_member_count; i++) {
+            cJSON* member = cJSON_GetArrayItem(members, i);
+            new_member_strings[i] = member->valuestring;
+        }
+
+        // Find removed members by comparing current vs new member lists
+        int current_member_count = cJSON_GetArraySize(current_members);
+        const char** removed_members = malloc(current_member_count * sizeof(char*));
+        int removed_count = 0;
+
+        for (int i = 0; i < current_member_count; i++) {
+            cJSON* current_member = cJSON_GetArrayItem(current_members, i);
+            if (!cJSON_IsString(current_member)) continue;
+            
+            const char* current_username = current_member->valuestring;
+            bool found_in_new = false;
+            
+            // Check if this current member is still in the new member list
+            for (int j = 0; j < new_member_count; j++) {
+                if (strcmp(current_username, new_member_strings[j]) == 0) {
+                    found_in_new = true;
+                    break;
+                }
+            }
+            
+            // If not found in new list, this member is being removed
+            if (!found_in_new) {
+                removed_members[removed_count] = current_username;
+                removed_count++;
+                printf("Member being removed: %s\n", current_username);
+            }
+        }
+
+        // Check if any removed members have unfinished tasks
+        if (removed_count > 0) {
+            printf("Checking %d removed members for unfinished tasks...\n", removed_count);
+            int has_unfinished = check_members_unfinished_tasks(project_id, removed_members, removed_count);
+            
+            if (has_unfinished) {
+                const char* error_response = "{\"status\":\"error\",\"message\":\"Cannot remove members who have unfinished tasks\"}";
+                struct MHD_Response* response = MHD_create_response_from_buffer(
+                    strlen(error_response),
+                    (void*)error_response,
+                    MHD_RESPMEM_PERSISTENT
+                );
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                MHD_add_response_header(response, "Content-Type", "application/json");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                
+                // Cleanup
+                free(new_member_strings);
+                free(removed_members);
+                cJSON_Delete(json);
+                cJSON_Delete(current_project);
+                free(current_project_json);
+                return ret;
+            }
+        }
+
+        // Proceed with the update if validation passed
+        int update_result = update_project_members(project_id, new_member_strings, new_member_count);
+        
+        // Cleanup
+        free(new_member_strings);
+        free(removed_members);
+        cJSON_Delete(current_project);
+        free(current_project_json);
         cJSON_Delete(json);
 
         if (update_result == 0) {
@@ -416,6 +532,81 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
             MHD_add_response_header(response, "Content-Type", "application/json");
             int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+    }
+
+    // Handle DELETE request for project deletion
+    if (strncmp(url, "/deleteproject/", 14) == 0 && strcmp(method, "DELETE") == 0) {
+        printf("Handling DELETE request for project deletion\n");
+        printf("URL: %s\n", url);
+        
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to delete projects (only MANAGER allowed)
+        if (check_permission(&auth, PERM_DELETE_PROJECTS) != 0) {
+            return send_forbidden_response(connection, "Only managers can delete projects");
+        }
+
+        // Skip the "/deleteproject/" prefix and any leading slash
+        const char* project_id = url + 14;
+        while (*project_id == '/') {
+            project_id++;
+        }
+
+        printf("Project ID to delete: %s\n", project_id);
+
+        if (strlen(project_id) != 24) {
+            printf("Invalid project ID length: %zu\n", strlen(project_id));
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Invalid project ID length\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        // Verify user has access to this specific project
+        if (check_user_project_access(auth.user_id, auth.role, project_id) != 0) {
+            return send_forbidden_response(connection, "Access denied to this project");
+        }
+
+        // Attempt to delete the project (includes task completion validation)
+        int delete_result = delete_project(project_id);
+        
+        if (delete_result == 0) {
+            const char* success_response = "{\"status\":\"success\",\"message\":\"Project deleted successfully\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(success_response),
+                (void*)success_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+        else {
+            const char* error_response = "{\"status\":\"error\",\"message\":\"Cannot delete project - it has unfinished tasks or an error occurred\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
             MHD_destroy_response(response);
             return ret;
         }

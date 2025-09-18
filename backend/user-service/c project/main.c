@@ -8,6 +8,7 @@
 #include "algs.h"
 #include "encode.h"
 #include "jwt_middleware.h"
+#include "password_validator.h"
 
 #define PORT 8080
 
@@ -67,7 +68,7 @@ int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key,
     return MHD_YES;
 }
 
-int answer_to_connection(void* cls, struct MHD_Connection* connection,
+static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* connection,
     const char* url, const char* method, const char* version,
     const char* upload_data, size_t* upload_data_size, void** con_cls) {
 
@@ -122,7 +123,8 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             }
 
             User user;
-            if (parse_user_from_json(json, &user) == 0) {
+            int parse_result = parse_user_from_json(json, &user);
+            if (parse_result == 0) {
                 if (adduser(&user) == 0) {
                     const char* response_str = "User data received";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
@@ -131,8 +133,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
                     MHD_destroy_response(response);
                     printf("KKKKKKKKKKKKK.\n");
-                }
-                else {
+                } else {
                     const char* error_response = "User not added";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
                         (void*)error_response, MHD_RESPMEM_PERSISTENT);
@@ -140,8 +141,23 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
                     MHD_destroy_response(response);
                 }
-            }
-            else {
+            } else if (parse_result == PASSWORD_TOO_SHORT || parse_result == PASSWORD_TOO_COMMON || parse_result == PASSWORD_INVALID_CHARS) {
+                // Handle password validation errors specifically
+                const char* error_message = get_password_error_message(parse_result);
+                cJSON* error_json = cJSON_CreateObject();
+                cJSON_AddStringToObject(error_json, "error", "Password validation failed");
+                cJSON_AddStringToObject(error_json, "message", error_message);
+                char* error_response = cJSON_Print(error_json);
+                
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_MUST_FREE);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                MHD_add_response_header(response, "Content-Type", "application/json");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(error_json);
+                printf("Password validation failed: %s\n", error_message);
+            } else {
                 const char* error_response = "Missing or invalid fields";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
                     (void*)error_response, MHD_RESPMEM_PERSISTENT);
@@ -489,11 +505,20 @@ int main() {
     }
 
     printf("Server running on port %d\n", port);
+    
+    // Initialize password validator
+    if (init_password_validator() != 0) {
+        printf("Warning: Password validator initialization failed. Weak password checking disabled.\n");
+    } else {
+        printf("Password validator initialized successfully.\n");
+    }
+    
     repo();
 
     // Run indefinitely (could also add logic to handle graceful shutdowns)
     getchar();
 
     MHD_stop_daemon(daemon);
+    cleanup_password_validator();
     return 0;
 }

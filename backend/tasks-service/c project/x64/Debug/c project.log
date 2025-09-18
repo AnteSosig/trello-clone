@@ -1,6 +1,4 @@
-﻿  main.c
-  repo.c
-  Generating Code...
+﻿  repo.c
   c project.vcxproj -> C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\tasks-service\x64\Debug\c project.exe
   'pwsh.exe' is not recognized as an internal or external command,
   operable program or batch file.

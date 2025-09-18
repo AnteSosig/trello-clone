@@ -1,6 +1,9 @@
-﻿x64\Debug\repo.obj : warning LNK4042: object specified more than once; extras ignored
-x64\Debug\model.obj : warning LNK4042: object specified more than once; extras ignored
-LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+﻿  repo.c
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\c project\repo.c(82,59): warning C4267: 'function': conversion from 'size_t' to 'unsigned int', possible loss of data
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\c project\repo.c(145,58): warning C4267: 'function': conversion from 'size_t' to 'unsigned int', possible loss of data
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\c project\repo.c(133,20): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\c project\repo.c(134,20): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\c project\repo.c(433,18): warning C4090: 'function': different 'const' qualifiers
   c project.vcxproj -> C:\Users\krist\OneDrive\Desktop\mrs\trello-clone\backend\user-service\x64\Debug\c project.exe
   'pwsh.exe' is not recognized as an internal or external command,
   operable program or batch file.

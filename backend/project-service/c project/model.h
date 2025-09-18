@@ -7,6 +7,10 @@
 #define MAX_MEMBERS 50
 #define MAX_DATE_LENGTH 10  // For date format "YYYY-MM-DD"
 
+typedef int ProjectStatus;
+#define PROJECT_ACTIVE 0      // Project has unfinished tasks or no tasks
+#define PROJECT_COMPLETED 1   // All tasks are completed
+
 typedef struct {
     char moderator[MAX_STRING_LENGTH];
     char project[MAX_STRING_LENGTH];
@@ -16,6 +20,7 @@ typedef struct {
     int max_members;
     int current_member_count;
     char creator_id[MAX_STRING_LENGTH];
+    ProjectStatus status;  // 0 = active, 1 = completed
 } Project;
 
 int parse_project_from_json(const cJSON* json, Project* project);

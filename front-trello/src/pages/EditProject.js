@@ -12,6 +12,8 @@ const EditProject = () => {
   const [error, setError] = useState(null);
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { user } = useAuth();
 
   // Debounced search function
@@ -148,6 +150,27 @@ const EditProject = () => {
     navigate('/');
   };
 
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      await projectApi.delete(`/deleteproject/${id}`);
+      alert('Project deleted successfully!');
+      navigate('/');
+    } catch (err) {
+      console.error('Delete error:', err);
+      if (err.response?.status === 400) {
+        alert('Cannot delete project - it has unfinished tasks');
+      } else if (err.response?.status === 403) {
+        alert('Access denied - only managers can delete projects');
+      } else {
+        alert('Failed to delete project: ' + (err.response?.data?.message || err.message));
+      }
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-700 flex items-center justify-center">
     <div className="text-white text-xl">Loading project...</div>
   </div>;
@@ -180,6 +203,17 @@ const EditProject = () => {
           <div className="text-white/90">
             <p className="font-semibold">Member Capacity:</p>
             <p>{project.current_member_count} / {project.max_members} members (Minimum: {project.min_members})</p>
+          </div>
+
+          <div className="text-white/90">
+            <p className="font-semibold">Status:</p>
+            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+              project.status === 1 
+                ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+                : 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30'
+            }`}>
+              {project.status === 1 ? 'Completed' : 'Active'}
+            </span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -256,6 +290,39 @@ const EditProject = () => {
               </button>
             </div>
           </form>
+
+          {/* Delete Section - Bottom Right */}
+          {user.role === 'MANAGER' && (
+            <div className="flex justify-end mt-8 pt-6 border-t border-white/20">
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-6 py-3 bg-red-600/20 text-red-300 border border-red-400/30 rounded-lg hover:bg-red-600/30 transition-colors"
+                >
+                  Delete Project
+                </button>
+              ) : (
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-6 py-3 bg-gray-600/20 text-gray-300 border border-gray-400/30 rounded-lg hover:bg-gray-600/30 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting...' : 'Confirm Delete'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

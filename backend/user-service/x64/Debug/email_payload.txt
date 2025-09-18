@@ -1,5 +1,5 @@
-To: hehek29229@lespedia.com
+To: docanip829ssssss@anysilo.com
 From: trello clone
 Subject: Test Email
 
-Vas aktivacioni kod: http://localhost:3000/activate?link=990a2fafb90b43a38d2712644cf927c0cca3b76c
+Vas aktivacioni kod: http://localhost:3000/activate?link=4d295fdb423b0d0183abcac45a73f2c810734e2a

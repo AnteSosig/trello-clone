@@ -1,0 +1,6 @@
+projectKey=Trello-Clone
+serverUrl=http://localhost:9000
+serverVersion=25.9.0.112764
+dashboardUrl=http://localhost:9000/dashboard?id=Trello-Clone
+ceTaskId=d25baaac-7ff3-4fac-ab07-29c5ffc4b35a
+ceTaskUrl=http://localhost:9000/api/ce/task?id=d25baaac-7ff3-4fac-ab07-29c5ffc4b35a

@@ -1,4 +1,5 @@
 #include <mongoc/mongoc.h>
+#include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -105,6 +106,7 @@ int addproject(Project* project) {
     BSON_APPEND_INT32(doc, "min_members", project->min_members);
     BSON_APPEND_INT32(doc, "max_members", project->max_members);
     BSON_APPEND_INT32(doc, "current_member_count", project->current_member_count);
+    BSON_APPEND_INT32(doc, "status", PROJECT_ACTIVE); // New projects start as active
 
     // Create members array
     bson_t members_array;
@@ -504,6 +506,265 @@ int check_user_project_access(const char* user_id, const char* role, const char*
     }
     
     return -1; // Access denied
+}
+
+int check_members_unfinished_tasks(const char* project_id, const char** removed_members, int removed_count) {
+    printf("\n=== Starting check_members_unfinished_tasks ===\n");
+    printf("Checking %d removed members for unfinished tasks in project %s\n", removed_count, project_id);
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1; // Return error - assume there are unfinished tasks
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1; // Return error - assume there are unfinished tasks
+    }
+
+    // Connect to tasks database
+    const char* db_name = "tasks";
+    const char* collection_name = "tasks";
+    mongoc_collection_t* tasks_collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    for (int i = 0; i < removed_count; i++) {
+        const char* user_id = removed_members[i];
+        printf("Checking user: %s\n", user_id);
+        
+        // Create query to find tasks where:
+        // 1. project_id matches AND
+        // 2. user is either the creator OR in the members array AND
+        // 3. status is NOT completed (status != 2)
+        bson_t* query = bson_new();
+        
+        // Add project_id condition
+        BSON_APPEND_UTF8(query, "project_id", project_id);
+        
+        // Add status condition (not completed)
+        bson_t ne_condition;
+        BSON_APPEND_DOCUMENT_BEGIN(query, "status", &ne_condition);
+        BSON_APPEND_INT32(&ne_condition, "$ne", 2); // STATUS_COMPLETED = 2
+        bson_append_document_end(query, &ne_condition);
+        
+        // Create OR condition: creator_id = user_id OR members contains user_id
+        bson_t or_array;
+        BSON_APPEND_ARRAY_BEGIN(query, "$or", &or_array);
+        
+        bson_t creator_condition;
+        BSON_APPEND_DOCUMENT_BEGIN(&or_array, "0", &creator_condition);
+        BSON_APPEND_UTF8(&creator_condition, "creator_id", user_id);
+        bson_append_document_end(&or_array, &creator_condition);
+        
+        bson_t members_condition;
+        BSON_APPEND_DOCUMENT_BEGIN(&or_array, "1", &members_condition);
+        BSON_APPEND_UTF8(&members_condition, "members", user_id);
+        bson_append_document_end(&or_array, &members_condition);
+        
+        bson_append_array_end(query, &or_array);
+
+        // Print the query for debugging
+        char* query_str = bson_as_json(query, NULL);
+        printf("MongoDB Query for user %s: %s\n", user_id, query_str);
+        bson_free(query_str);
+
+        // Count documents matching the query
+        bson_error_t error;
+        int64_t count = mongoc_collection_count_documents(tasks_collection, query, NULL, NULL, NULL, &error);
+        printf("Number of unfinished tasks for user %s: %lld\n", user_id, (long long)count);
+
+        bson_destroy(query);
+
+        if (count > 0) {
+            printf("User %s has %lld unfinished tasks - cannot remove from project\n", user_id, (long long)count);
+            mongoc_collection_destroy(tasks_collection);
+            Cleanup(repo);
+            fclose(log);
+            printf("=== Finished check_members_unfinished_tasks (BLOCKED) ===\n\n");
+            return 1; // Return 1 if any user has unfinished tasks
+        }
+    }
+
+    printf("All removed members have no unfinished tasks - removal allowed\n");
+    mongoc_collection_destroy(tasks_collection);
+    Cleanup(repo);
+    fclose(log);
+    printf("=== Finished check_members_unfinished_tasks (ALLOWED) ===\n\n");
+    
+    return 0; // Return 0 if all users can be safely removed
+}
+
+int check_project_tasks_completion(const char* project_id) {
+    printf("\n=== Starting check_project_tasks_completion ===\n");
+    printf("Checking completion status for project %s\n", project_id);
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return PROJECT_ACTIVE; // Return active if error - safer default
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return PROJECT_ACTIVE; // Return active if error - safer default
+    }
+
+    // Connect to tasks database
+    const char* db_name = "tasks";
+    const char* collection_name = "tasks";
+    mongoc_collection_t* tasks_collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // First, check if project has any tasks at all
+    bson_t* all_tasks_query = bson_new();
+    BSON_APPEND_UTF8(all_tasks_query, "project_id", project_id);
+    
+    bson_error_t error;
+    int64_t total_tasks = mongoc_collection_count_documents(tasks_collection, all_tasks_query, NULL, NULL, NULL, &error);
+    printf("Total tasks in project: %lld\n", (long long)total_tasks);
+    
+    if (total_tasks == 0) {
+        printf("Project has no tasks - can be deleted\n");
+        bson_destroy(all_tasks_query);
+        mongoc_collection_destroy(tasks_collection);
+        Cleanup(repo);
+        fclose(log);
+        printf("=== Finished check_project_tasks_completion (NO TASKS) ===\n\n");
+        return PROJECT_COMPLETED; // No tasks means project can be considered complete
+    }
+
+    // Check for unfinished tasks (status != 2)
+    bson_t* unfinished_query = bson_new();
+    BSON_APPEND_UTF8(unfinished_query, "project_id", project_id);
+    
+    bson_t ne_condition;
+    BSON_APPEND_DOCUMENT_BEGIN(unfinished_query, "status", &ne_condition);
+    BSON_APPEND_INT32(&ne_condition, "$ne", 2); // STATUS_COMPLETED = 2
+    bson_append_document_end(unfinished_query, &ne_condition);
+
+    int64_t unfinished_tasks = mongoc_collection_count_documents(tasks_collection, unfinished_query, NULL, NULL, NULL, &error);
+    printf("Unfinished tasks in project: %lld\n", (long long)unfinished_tasks);
+
+    bson_destroy(all_tasks_query);
+    bson_destroy(unfinished_query);
+    mongoc_collection_destroy(tasks_collection);
+    Cleanup(repo);
+    fclose(log);
+
+    if (unfinished_tasks > 0) {
+        printf("Project has %lld unfinished tasks - cannot be deleted\n", (long long)unfinished_tasks);
+        printf("=== Finished check_project_tasks_completion (ACTIVE) ===\n\n");
+        return PROJECT_ACTIVE;
+    } else {
+        printf("All tasks are completed - project can be deleted\n");
+        printf("=== Finished check_project_tasks_completion (COMPLETED) ===\n\n");
+        return PROJECT_COMPLETED;
+    }
+}
+
+int update_project_status(const char* project_id, ProjectStatus status) {
+    printf("\n=== Starting update_project_status ===\n");
+    printf("Updating project %s status to %d\n", project_id, status);
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1;
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1;
+    }
+
+    const char* db_name = "trello";
+    const char* collection_name = "projects";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // Create query to find the project by ID
+    bson_t* query = bson_new();
+    bson_oid_t oid;
+    bson_oid_init_from_string(&oid, project_id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    // Create update document
+    bson_t* update = bson_new();
+    bson_t set;
+    BSON_APPEND_DOCUMENT_BEGIN(update, "$set", &set);
+    BSON_APPEND_INT32(&set, "status", status);
+    bson_append_document_end(update, &set);
+
+    bson_error_t error;
+    if (!mongoc_collection_update_one(repo->collection, query, update, NULL, NULL, &error)) {
+        printf("Error updating project status: %s\n", error.message);
+        bson_destroy(query);
+        bson_destroy(update);
+        Cleanup(repo);
+        fclose(log);
+        return 1;
+    }
+
+    printf("Project status updated successfully\n");
+    bson_destroy(query);
+    bson_destroy(update);
+    Cleanup(repo);
+    fclose(log);
+    printf("=== Finished update_project_status ===\n\n");
+    return 0;
+}
+
+int delete_project(const char* project_id) {
+    printf("\n=== Starting delete_project ===\n");
+    printf("Attempting to delete project %s\n", project_id);
+    
+    // First check if project can be deleted
+    int completion_status = check_project_tasks_completion(project_id);
+    if (completion_status != PROJECT_COMPLETED) {
+        printf("Project cannot be deleted - has unfinished tasks\n");
+        printf("=== Finished delete_project (BLOCKED) ===\n\n");
+        return 1; // Cannot delete
+    }
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1;
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1;
+    }
+
+    const char* db_name = "trello";
+    const char* collection_name = "projects";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // Create query to find the project by ID
+    bson_t* query = bson_new();
+    bson_oid_t oid;
+    bson_oid_init_from_string(&oid, project_id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    bson_error_t error;
+    bool delete_result = mongoc_collection_delete_one(repo->collection, query, NULL, NULL, &error);
+    if (!delete_result) {
+        printf("Error deleting project: %s\n", error.message);
+        bson_destroy(query);
+        Cleanup(repo);
+        fclose(log);
+        return 1;
+    }
+
+    printf("Project deleted successfully\n");
+    bson_destroy(query);
+    Cleanup(repo);
+    fclose(log);
+    printf("=== Finished delete_project (SUCCESS) ===\n\n");
+    return 0;
 }
 
 int repo() {

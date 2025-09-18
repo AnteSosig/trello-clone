@@ -432,6 +432,262 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         return ret;
     }
 
+    // Add member to task
+    if (strncmp(url, "/tasks/", 7) == 0 && strstr(url, "/add-member") && strcmp(method, "POST") == 0) {
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to assign tasks (only MANAGER allowed)
+        if (check_permission(&auth, PERM_ASSIGN_TASKS) != 0) {
+            return send_forbidden_response(connection, "Only managers can assign tasks to members");
+        }
+        
+        // Extract task ID from URL: /tasks/{task_id}/add-member
+        const char* task_id_start = url + 7; // Skip "/tasks/"
+        const char* add_member_pos = strstr(task_id_start, "/add-member");
+        if (!add_member_pos) {
+            const char* error_response = "{\"error\": \"Invalid URL format\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+        
+        // Extract task ID
+        int task_id_len = add_member_pos - task_id_start;
+        char task_id[256];
+        strncpy(task_id, task_id_start, task_id_len);
+        task_id[task_id_len] = '\0';
+        
+        printf("Processing add member for task ID: %s\n", task_id);
+
+        if (!conn_info->json_data) {
+            const char* error_response = "{\"error\": \"No data received\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        cJSON* json = cJSON_Parse(conn_info->json_data);
+        if (!json) {
+            const char* error_response = "{\"error\": \"Invalid JSON format\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        cJSON* member_id_json = cJSON_GetObjectItem(json, "member_id");
+        if (!member_id_json || !cJSON_IsString(member_id_json)) {
+            const char* error_response = "{\"error\": \"Missing or invalid member_id\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        }
+
+        const char* member_id = member_id_json->valuestring;
+        int result = add_member_to_task(task_id, member_id);
+        
+        if (result == 0) {
+            const char* success_response = "{\"status\": \"success\", \"message\": \"Member added to task\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(success_response),
+                (void*)success_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        } else if (result == 2) {
+            const char* error_response = "{\"error\": \"User is not a member of this project\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        } else {
+            const char* error_response = "{\"error\": \"Failed to add member to task\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        }
+    }
+
+    // Remove member from task
+    if (strncmp(url, "/tasks/", 7) == 0 && strstr(url, "/remove-member") && strcmp(method, "POST") == 0) {
+        // Authenticate the request
+        AuthContext auth;
+        if (authenticate_request(connection, &auth) != 0) {
+            return send_unauthorized_response(connection, auth.error_message);
+        }
+        
+        // Check permission to assign tasks (only MANAGER allowed)
+        if (check_permission(&auth, PERM_ASSIGN_TASKS) != 0) {
+            return send_forbidden_response(connection, "Only managers can assign tasks to members");
+        }
+        
+        // Extract task ID from URL: /tasks/{task_id}/remove-member
+        const char* task_id_start = url + 7; // Skip "/tasks/"
+        const char* remove_member_pos = strstr(task_id_start, "/remove-member");
+        if (!remove_member_pos) {
+            const char* error_response = "{\"error\": \"Invalid URL format\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+        
+        // Extract task ID
+        int task_id_len = remove_member_pos - task_id_start;
+        char task_id[256];
+        strncpy(task_id, task_id_start, task_id_len);
+        task_id[task_id_len] = '\0';
+        
+        printf("Processing remove member for task ID: %s\n", task_id);
+
+        if (!conn_info->json_data) {
+            const char* error_response = "{\"error\": \"No data received\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        cJSON* json = cJSON_Parse(conn_info->json_data);
+        if (!json) {
+            const char* error_response = "{\"error\": \"Invalid JSON format\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        }
+
+        cJSON* member_id_json = cJSON_GetObjectItem(json, "member_id");
+        if (!member_id_json || !cJSON_IsString(member_id_json)) {
+            const char* error_response = "{\"error\": \"Missing or invalid member_id\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        }
+
+        const char* member_id = member_id_json->valuestring;
+        int result = remove_member_from_task(task_id, member_id);
+        
+        if (result == 0) {
+            const char* success_response = "{\"status\": \"success\", \"message\": \"Member removed from task\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(success_response),
+                (void*)success_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        } else if (result == 2) {
+            const char* error_response = "{\"error\": \"Cannot remove member from completed task\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        } else {
+            const char* error_response = "{\"error\": \"Failed to remove member from task\"}";
+            struct MHD_Response* response = MHD_create_response_from_buffer(
+                strlen(error_response),
+                (void*)error_response,
+                MHD_RESPMEM_PERSISTENT
+            );
+            MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+            MHD_add_response_header(response, "Content-Type", "application/json");
+            int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+            MHD_destroy_response(response);
+            cJSON_Delete(json);
+            return ret;
+        }
+    }
+
     // Handle 404 for unmatched routes
     const char* not_found = "404 - Not Found";
     struct MHD_Response* response = MHD_create_response_from_buffer(

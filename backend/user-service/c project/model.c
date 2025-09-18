@@ -1,6 +1,7 @@
 #include "model.h"
 #include <string.h>
 #include <cjson/cJSON.h>
+#include "password_validator.h"
 
 int parse_user_from_json(const cJSON* json, User* user) {
     // Check if each field exists and is a string
@@ -16,6 +17,12 @@ int parse_user_from_json(const cJSON* json, User* user) {
         return 1;
     }
     if (!strcmp(role->valuestring, "MANAGER") || !strcmp(role->valuestring, "USER")) {
+        
+        // Validate password before proceeding
+        int password_validation = validate_password(password->valuestring);
+        if (password_validation != PASSWORD_VALID) {
+            return password_validation; // Return specific password error code
+        }
 
         // Copy the values into the User struct, ensuring they fit the defined size
         strncpy(user->username, username->valuestring, sizeof(user->username) - 1);
