@@ -1571,6 +1571,111 @@ int check_recovery_link(const char *link) {
     return 2;
 }
 
+int alterpassword(const char* link, char* new_password) {
+
+    Repository* repo = New(log);
+    const char* db_name = "users";
+    const char* collection_name = "links";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+    printf("Provera aktivacionog koda.\n");
+    fprintf(stderr, "I love rozen maiden5\n");
+    fprintf(stderr, "link: %s\n", link);
+
+    const char* type = "recovery";
+
+    // Build the query
+    bson_t* query = BCON_NEW(
+        "$and", "[",
+        "{", "link", BCON_UTF8(link), "}",
+        "{", "type", BCON_UTF8(type), "}",
+        "]"
+    );
+    
+    User user;
+    int found = 0;
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    fprintf(stderr, "FUCKING NIGGER EXECUTE5\n");
+    while (mongoc_cursor_next(cursor, &doc)) {
+        // Extract and print "username" field
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, doc)) {
+            if (bson_iter_find(&iter, "username")) {
+                const char* found_username = bson_iter_utf8(&iter, NULL);
+                printf("Found user: %s\n", found_username);
+                fprintf(stderr, "Found user: %s\n", found_username);
+                snprintf(user.username, sizeof(user.username), "%s", found_username);
+                found = 1;
+            }
+        }
+    }
+    fprintf(stderr, "FUCKING NIGGER EXECUTE5\n");
+
+    if (!found) {
+        bson_destroy(query);
+        mongoc_cursor_destroy(cursor);
+        Cleanup(repo);
+
+        return 1;
+    }
+
+    fprintf(stderr, "FUCKING NIGGER EXECUTE5\n");
+
+    bson_destroy(query);
+    mongoc_cursor_destroy(cursor);
+
+    fprintf(stderr, "Updating password\n");
+
+    bson_t* filter = BCON_NEW(
+        "username", BCON_UTF8(user.username)
+    );
+    printf("Oof.\n");
+    fprintf(stderr, "Zlaja Kakimic\n");
+    fprintf(stderr, "Username: %s\n", user.username);
+
+    char hashed_new_password[41] = {0};
+    fprintf(stderr, "new password: %sniger\n", new_password);
+    password_hash(new_password, (char*)hashed_new_password);
+    fprintf(stderr, "hashed new password: %sniger\n", hashed_new_password);
+
+    // Define the update operation
+    bson_t *update = BCON_NEW(
+        "$set", "{",
+            "password", BCON_UTF8(hashed_new_password),
+        "}"
+    );
+    printf("Oof.\n");
+
+    // Perform the update
+    bson_error_t error;
+    int result = mongoc_collection_update_one(
+        repo->collection,  // Collection handle
+        filter,      // Filter document
+        update,      // Update document
+        NULL,        // No additional options
+        NULL,        // No reply document needed
+        &error       // Error object
+    );
+    printf("Oof.\n");
+    fprintf(stderr, "FUCKING NIGGER EXECUTE5\n");
+
+    if (result) {
+        printf("Document updated successfully.\n");
+    }
+    else {
+        fprintf(stderr, "Update failed: %s\n", error.message);
+        printf("I hate standard error.\n");
+        bson_destroy(update);
+        Cleanup(repo);
+
+        return 1;
+    }
+    bson_destroy(update);
+    fprintf(stderr, "FUCKING NIGGER EXECUTE5\n");
+
+    return 0;
+}
+
 int repo() {
 
     log = fopen("log.txt", "w");

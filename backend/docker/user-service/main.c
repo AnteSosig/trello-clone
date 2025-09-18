@@ -76,6 +76,21 @@ int parse_recovery_link(void* cls, enum MHD_ValueKind kind, const char* key, con
     return MHD_YES;
 }
 
+int return_recovery_link(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
+
+    char *recovery_link = (char*)cls;
+
+    if (key && value) {
+        if (strcmp(key, "link") == 0) {
+            snprintf(recovery_link, 41, "%s", value);
+            fprintf(stderr, "recovery link %s\n", recovery_link);
+            fprintf(stderr, "Herbal\n");
+        }
+    }
+
+    return MHD_YES;
+}
+
 int parse_search_parameters(void* cls, enum MHD_ValueKind kind, const char* key, const char* value) {
 
     struct Usersearch* userstruct = (struct Usersearch*)cls;
@@ -528,7 +543,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     claim_ptr = claims[i].value;
                 }
                 if (strcmp(claims[i].key, "aud") == 0) {
-                    if (strcmp(claims[i].value, "USER") != 0 || strcmp(claims[i].value, "MANAGER") != 0) {
+                    if (strcmp(claims[i].value, "USER") != 0 && strcmp(claims[i].value, "MANAGER") != 0) {
                         access = 1;
                     }
                 }
@@ -848,7 +863,7 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
         MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_recovery_link, &is_valid);
         printf("is valid: %d\n", is_valid);
-        // Parse query string parameters and check them on the fly
+        
         if (is_valid) {
             struct MHD_Response* response;
             const char* response_text = "Valid link";
@@ -868,6 +883,119 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             MHD_destroy_response(response);
 
             return ret;
+        }
+    }
+
+    if (strcmp(url, "/confirmpasswordrecovery") == 0 && strcmp(method, "POST") == 0) {
+        
+        printf("ZLAJAAAAA.\n");
+
+        if (*con_cls == NULL) {
+            struct ConnectionInfo* conn_info = calloc(1, sizeof(struct ConnectionInfo));
+            *con_cls = (void*)conn_info;
+            return MHD_YES;
+        }
+
+        printf("KAKIMIIIICS.\n");
+
+        struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
+        // If there's upload data, accumulate it
+        if (*upload_data_size > 0) {
+            // Reallocate memory to store incoming data
+            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
+            conn_info->json_size += *upload_data_size;
+            conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
+            *upload_data_size = 0;  // Signal that we've processed this data
+            printf("KRKAAAAAAN.\n");
+            return MHD_YES;
+        }
+        else {
+            // All data received, process the JSON
+            cJSON* json = cJSON_Parse(conn_info->json_data);
+            if (json == NULL) {
+                const char* error_response = "Invalid JSON format";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+                cJSON_Delete(json);
+                printf("GIMBAAAAAN.\n");
+                return MHD_YES;
+            }
+
+            printf("Received GET request for URL path: %s\n", url);
+            fprintf(stderr, "Received GET request for URL path: %s\n", url);
+            int is_valid = 0;
+
+            MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, parse_recovery_link, &is_valid);
+            printf("is valid: %d\n", is_valid);
+            fprintf(stderr, "is valid: %d\n", is_valid);
+            
+            if (is_valid) {
+
+                cJSON* new_password = cJSON_GetObjectItem(json, "new_password");
+                if (!cJSON_IsString(new_password)) {
+                    const char* not_found = "Invalid JSON format";
+                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found),
+                        (void*)not_found, MHD_RESPMEM_PERSISTENT);
+                    MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                    int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                    MHD_destroy_response(response);
+                    return ret;
+                }
+
+                char recovery_link[41];
+                MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, return_recovery_link, recovery_link);
+                fprintf(stderr, "Recovery link: %s\n", recovery_link);
+
+                if (recovery_link) {
+
+                    int alterpassword_code = alterpassword(recovery_link, new_password->valuestring);
+                    fprintf(stderr, "Recovery pls\n");
+
+                    if (!alterpassword_code) {
+                        struct MHD_Response* response;
+                        const char* response_text = "Password changed";
+                        response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+                        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                        int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+                        MHD_destroy_response(response);
+
+                        return ret;
+                    }
+
+                    struct MHD_Response* response;
+                    const char* response_text = "Internal server error";
+                    response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+                    MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                    int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+                    MHD_destroy_response(response);
+
+                    return ret;
+                }
+                else {
+                    struct MHD_Response* response;
+                    const char* response_text = "Internal server error";
+                    response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+                    MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                    int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+                    MHD_destroy_response(response);
+
+                    return ret;
+                }
+            }
+            else {
+                struct MHD_Response* response;
+                const char* response_text = "Invalid link";
+                response = MHD_create_response_from_buffer(strlen(response_text), (void*)response_text, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                MHD_destroy_response(response);
+
+                return ret;
+            }
         }
     }
 

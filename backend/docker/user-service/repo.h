@@ -13,5 +13,6 @@ int find_user_and_send_magic(const char* username);
 int check_magic_link(const char* link, char** username);
 int cheeky(const char* username, char** role);
 int find_user_and_send_recovery(const char* email);
+int alterpassword(const char* link, char* new_password);
 
 #endif
