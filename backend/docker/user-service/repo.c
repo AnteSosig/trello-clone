@@ -871,8 +871,8 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
                 int active = bson_iter_int32(&iter2);
                 printf("Active: %d\n", active);
                 if (!active) {
-                    bson_destroy(query);
-                    mongoc_cursor_destroy(cursor);
+                    bson_destroy(query2);
+                    mongoc_cursor_destroy(cursor2);
                     Cleanup(repo);
                     return 1;
                 }

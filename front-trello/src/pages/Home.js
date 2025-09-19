@@ -215,6 +215,7 @@ const Home = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...getAuthHeader()
           },
           body: JSON.stringify({
             ...formData,
