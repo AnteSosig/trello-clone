@@ -623,6 +623,14 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 }
 
 int main() {
+
+    const char *var_name = "HMAC_KEY";
+    char *hmac_key = getenv(var_name);
+    if (!hmac_key) {
+        fprintf(stderr, "Cannot find HMAC key\n");
+        return 1;
+    }
+
     struct MHD_Daemon* daemon;
 
     char* port_env = getenv("PORT");

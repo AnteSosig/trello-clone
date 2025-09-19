@@ -42,8 +42,8 @@ int init_password_validator(void) {
     while (fgets(line, sizeof(line), file) && blacklist_count < MAX_BLACKLISTED_PASSWORDS) {
         // Remove newline character
         size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') {
-            line[len - 1] = '\0';
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+            line[--len] = '\0';
         }
         
         // Skip empty lines
@@ -61,6 +61,11 @@ int init_password_validator(void) {
     validator_initialized = 1;
     
     printf("Password validator initialized with %d blacklisted passwords.\n", blacklist_count);
+
+    for (int i = 0; i < blacklist_count; i++) {
+        fprintf(stderr, "Password %d: '%s'\n", i + 1, blacklisted_passwords[i]);
+    }
+    
     return 0;
 }
 

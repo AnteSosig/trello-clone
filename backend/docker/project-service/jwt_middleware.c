@@ -3,9 +3,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// Same secret key as used in user service for encoding
-static const char* JWT_SECRET = "YoUR sUpEr S3krEt 1337 HMAC kEy HeRE";
-
 /**
  * Extract JWT token from Authorization header
  */
@@ -35,6 +32,10 @@ int extract_jwt_from_headers(struct MHD_Connection* connection, char* token_out,
  * Validate JWT token and extract user information
  */
 int validate_jwt_token(const char* token, AuthContext* auth) {
+
+    const char *var_name = "HMAC_KEY";
+    char *hmac_key = getenv(var_name);
+
     struct l8w8jwt_decoding_params params;
     enum l8w8jwt_validation_result validation_result;
     
@@ -48,8 +49,8 @@ int validate_jwt_token(const char* token, AuthContext* auth) {
     params.alg = L8W8JWT_ALG_HS512;
     params.jwt = (char*)token;
     params.jwt_length = strlen(token);
-    params.verification_key = (unsigned char*)JWT_SECRET;
-    params.verification_key_length = strlen(JWT_SECRET);
+    params.verification_key = (unsigned char*)hmac_key;
+    params.verification_key_length = strlen(hmac_key);
     
     // Validate current time
     params.validate_iat = 1;
