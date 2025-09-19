@@ -8,8 +8,6 @@ export const removeCookies = () => {
   Cookies.remove('token');
   Cookies.remove('role');
   Cookies.remove('sessionExpiration');
-
-  console.log('Cookies after removal:', document.cookie);
 };
 
 export const isSessionValid = () => {

@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import { useAuth } from '../contexts/AuthContext';
 
 const LoginForm = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
   const [username_or_email, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -42,8 +39,10 @@ const LoginForm = () => {
       console.log('Response data:', data);
       
       // Set cookies with expiration
-      const expirationInSeconds = data.expires || 3600;
-      const expirationInDays = expirationInSeconds / (24 * 60 * 60);
+      const expirationInSeconds = data.expires || 3600; // default 1 hour if not provided
+      const expirationInDays = expirationInSeconds / (24 * 60 * 60); // Convert seconds to days
+
+      console.log('Setting cookies with expiration (days):', expirationInDays);
 
       Cookies.set('token', data.token, { 
         expires: expirationInDays,
@@ -60,20 +59,15 @@ const LoginForm = () => {
         sameSite: 'strict'
       });
 
-      // Update auth context
-      if (login(data.token, data.role)) {
-        setSuccessMessage('Uspešno ste ulogovani.');
-        
-        // Get the intended destination from location state or default to home
-        const from = location.state?.from?.pathname || '/';
-        
-        // Add a small delay before redirecting to show the success message
-        setTimeout(() => {
-          navigate(from, { replace: true });
-        }, 1000);
-      } else {
-        setError('Failed to process login data');
-      }
+      console.log('Stored Cookies:');
+      console.log('Token:', Cookies.get('token'));
+      console.log('Role:', Cookies.get('role'));
+      console.log('Session Expiration:', Cookies.get('sessionExpiration'));
+      
+      // Or log all cookies at once
+      console.log('All Cookies:', Cookies.get());
+
+      setSuccessMessage('Uspešno ste ulogovani.');
       
       // Redirect to home page after successful login and refresh
       setTimeout(() => {

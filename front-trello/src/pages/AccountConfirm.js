@@ -14,7 +14,7 @@ const AccountConfirm = () => {
     if (link) {
       activationAttempted.current = true;
       axios
-        .get(`http://localhost:8080/activate?link=${link}`)
+        .get(`https://localhost:8443/activate?link=${link}`)
         .then((response) => {
           if (response.status === 200) {
             setStatus(true); // Success

@@ -15,7 +15,7 @@ const FilterComponent = () => {
 
   const handleFilter = async () => {
     try {
-      const response = await axios.get('http://localhost:8080/api/nekretnine/pretraga', {
+      const response = await axios.get('https://localhost:8080/api/nekretnine/pretraga', {
         params: { lokacija, povrsina, cena, prodaja, tip },
         headers: { authorization: 'token' },
       });
@@ -29,7 +29,7 @@ const FilterComponent = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'http://localhost:8080/api/nekretnine/like',
+        'https://localhost:8080/api/nekretnine/like',
         { nekretninaId: propertyId, like: true },
         { headers: { authorization: token } }
       );
