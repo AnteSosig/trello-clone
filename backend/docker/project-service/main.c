@@ -79,6 +79,74 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             Project project;
             if (parse_project_from_json(json, &project) == 0) {
+                const char *auth = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_AUTHORIZATION);
+                fprintf(stderr, "token %s\n", auth);
+
+                int pure_token_length = strlen(auth) - 7;
+                char pure_token[pure_token_length + 1];
+                for (int i = 0; i < pure_token_length; ++i) {
+                    pure_token[i] = auth[i + 7];
+                }
+                pure_token[pure_token_length] = '\0';
+                fprintf(stderr, "pure token %s\n", pure_token);
+
+                const char *var_name = "HMAC_KEY";
+                char *hmac_key = getenv(var_name);
+                fprintf(stderr, "key %s\n", hmac_key);
+
+                struct l8w8jwt_decoding_params params;
+                l8w8jwt_decoding_params_init(&params);
+
+                params.alg = L8W8JWT_ALG_HS512;
+
+                params.jwt = pure_token;
+                params.jwt_length = pure_token_length;
+
+                params.verification_key = (unsigned char*)hmac_key;
+                params.verification_key_length = strlen(hmac_key);
+
+                params.validate_iss = "Trello Clone"; 
+                printf("KREK CAMUSKI\n");
+
+                params.validate_exp = 1; 
+                params.exp_tolerance_seconds = 60;
+
+                params.validate_iat = 1;
+                params.iat_tolerance_seconds = 60;
+
+                enum l8w8jwt_validation_result validation_result;
+
+                struct l8w8jwt_claim* claims = NULL;
+                size_t claims_len = 0;
+
+                int decode_result = l8w8jwt_decode(&params, &validation_result, &claims, &claims_len);
+                printf("decode_result=%d, validation_result=%d, claims_len=%zu\n", decode_result, validation_result, claims_len);
+                printf("KREK CRNI\n");
+
+                const char *claim_ptr;
+                if (decode_result == L8W8JWT_SUCCESS && validation_result == L8W8JWT_VALID) {
+
+                    for (size_t i = 0; i < claims_len; ++i) {
+                        if (strcmp(claims[i].key, "sub") == 0) {
+                            claim_ptr = claims[i].value;
+                        }
+                    }
+
+                }
+                else {
+                    const char* error_response = "Bad token";
+                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                        (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                    MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                    int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                    MHD_destroy_response(response);
+                    return ret;
+                }
+
+                project.moderator[0] = '\0';
+                snprintf(project.moderator, sizeof(project.moderator), "%s", claim_ptr);
+                fprintf(stderr, "niger: %s\n", project.moderator);
+
                 if (addproject(&project) == 0) {
                     cJSON* response_json = cJSON_CreateObject();
                     cJSON_AddStringToObject(response_json, "moderator", project.moderator);
