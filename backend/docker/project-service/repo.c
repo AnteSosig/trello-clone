@@ -14,12 +14,13 @@ typedef struct {
 } Repository;
 
 Repository* New(FILE* logger) {
-    printf("Initializing MongoDB client...\n");
-    const char* dburi = "mongodb://localhost:27017/";
+    
+    const char *var_name = "DBURI";
+    char *dburi = getenv(var_name);
+    printf("Bruhimic moram priznati\n");
 
     if (dburi == NULL) {
         fprintf(logger, "Error: MONGO_DB_URI environment variable is not set\n");
-        printf("Error: MONGO_DB_URI environment variable is not set\n");
         return NULL;
     }
 
