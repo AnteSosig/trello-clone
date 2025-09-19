@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import { setSecureCookie } from '../utils/cookies';
+import { sanitizeInput, validateEmail } from '../utils/security';
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -18,7 +20,21 @@ const LoginForm = () => {
     setError('');
     setSuccessMessage('');
     
-    console.log('Attempting login with:', { username_or_email, password });
+    // Basic validation
+    if (!username_or_email.trim()) {
+      setError('Username or email is required');
+      return;
+    }
+    
+    if (!password.trim()) {
+      setError('Password is required');
+      return;
+    }
+    
+    // Sanitize inputs
+    const sanitizedUsernameOrEmail = sanitizeInput(username_or_email);
+    
+    console.log('Attempting login with:', { username_or_email: sanitizedUsernameOrEmail, password: '[REDACTED]' });
 
     try {
       const response = await fetch('https://localhost:8443/user/login', {
@@ -26,7 +42,10 @@ const LoginForm = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username_or_email, password }),
+        body: JSON.stringify({ 
+          username_or_email: sanitizedUsernameOrEmail, 
+          password // Don't sanitize password as it may contain special chars
+        }),
       });
 
       console.log('Response status:', response.status);
@@ -44,20 +63,10 @@ const LoginForm = () => {
 
       console.log('Setting cookies with expiration (days):', expirationInDays);
 
-      Cookies.set('token', data.token, { 
-        expires: expirationInDays,
-        sameSite: 'strict'
-      });
-      
-      Cookies.set('role', data.role, {
-        expires: expirationInDays,
-        sameSite: 'strict'
-      });
-
-      Cookies.set('sessionExpiration', new Date(Date.now() + expirationInSeconds * 1000).toISOString(), {
-        expires: expirationInDays,
-        sameSite: 'strict'
-      });
+      // Use secure cookie setting function
+      setSecureCookie('token', data.token, expirationInDays);
+      setSecureCookie('role', data.role, expirationInDays);
+      setSecureCookie('sessionExpiration', new Date(Date.now() + expirationInSeconds * 1000).toISOString(), expirationInDays);
 
       console.log('Stored Cookies:');
       console.log('Token:', Cookies.get('token'));

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
+import { encodeURLParam } from '../utils/security';
 
 const EditProject = () => {
   const { id } = useParams();
@@ -17,7 +18,8 @@ const EditProject = () => {
       if (searchTerm.length >= 4) {
         setIsSearching(prev => ({ ...prev, [index]: true }));
         try {
-          const response = await fetch(`https://localhost:8443/user/finduser?name=${searchTerm}`);
+          const encodedSearchTerm = encodeURLParam(searchTerm);
+          const response = await fetch(`https://localhost:8443/user/finduser?name=${encodedSearchTerm}`);
           const data = await response.json();
           setSearchResults(prev => ({ ...prev, [index]: data }));
         } catch (error) {

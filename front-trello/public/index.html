@@ -9,6 +9,12 @@
       name="description"
       content="Web site created using create-react-app"
     />
+    <!-- Content Security Policy for XSS protection -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com; font-src 'self' https://stackpath.bootstrapcdn.com; connect-src 'self' https://localhost:8443; img-src 'self' data: %PUBLIC_URL%;">
+    <!-- Additional security headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!-- Add Bootstrap CSS link -->
     <link

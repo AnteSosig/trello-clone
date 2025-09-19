@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { sanitizeFormData, validateEmail, validateUsername, validatePassword } from '../utils/security';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -20,14 +21,40 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate inputs
+    if (!validateUsername(formData.username)) {
+      setError('Username must be 3-20 characters and contain only letters, numbers, and underscores');
+      return;
+    }
+    
+    if (!validateEmail(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.errors.join('. '));
+      return;
+    }
+    
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      setError('First name and last name are required');
+      return;
+    }
+    
     try {
+      // Sanitize form data
+      const sanitizedData = sanitizeFormData(formData);
+      
       const userPayload = {
-        username: formData.username,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role
+        username: sanitizedData.username,
+        first_name: sanitizedData.first_name,
+        last_name: sanitizedData.last_name,
+        email: sanitizedData.email,
+        password: formData.password, // Don't sanitize password as it may contain special chars
+        role: sanitizedData.role
       };
 
       const response = await axios.post('https://localhost:8443/user/newuser', userPayload, {

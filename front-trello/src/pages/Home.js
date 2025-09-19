@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
 import { jwtDecode } from "jwt-decode";
 import { getAuthHeader } from '../utils/cookies';
+import { sanitizeFormData, encodeURLParam, validateProjectName } from '../utils/security';
 
 const Home = () => {
   const [isGridView, setIsGridView] = useState(true);
@@ -192,7 +193,8 @@ const Home = () => {
         if (searchTerm.length >= 4) {
           setIsSearching(prev => ({ ...prev, [index]: true }));
           try {
-            const response = await fetch(`https://localhost:8443/user/finduser?name=${searchTerm}`);
+            const encodedSearchTerm = encodeURLParam(searchTerm);
+            const response = await fetch(`https://localhost:8443/user/finduser?name=${encodedSearchTerm}`);
             const data = await response.json();
             setSearchResults(prev => ({ ...prev, [index]: data }));
           } catch (error) {
@@ -210,6 +212,15 @@ const Home = () => {
     const handleSubmit = async (e) => {
       e.preventDefault();
       
+      // Validate project name
+      if (!validateProjectName(formData.project)) {
+        alert('Project name can only contain letters, numbers, spaces, hyphens, and underscores (max 50 characters)');
+        return;
+      }
+      
+      // Sanitize form data
+      const sanitizedFormData = sanitizeFormData(formData);
+      
       try {
         const response = await fetch('https://localhost:8443/project/newproject', {
           method: 'POST',
@@ -218,9 +229,9 @@ const Home = () => {
             ...getAuthHeader()
           },
           body: JSON.stringify({
-            ...formData,
+            ...sanitizedFormData,
             moderator: userId,
-            current_member_count: formData.members.filter(m => m).length
+            current_member_count: sanitizedFormData.members.filter(m => m).length
           }),
         });
 
