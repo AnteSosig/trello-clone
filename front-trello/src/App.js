@@ -7,6 +7,7 @@ import RegisterUser from './pages/RegisterUser';
 import SearchFilter from './components/SearchFilter';
 import NotFound from './pages/NotFound';
 import EditProject from './pages/EditProject';
+import TaskManagement from './pages/TaskManagement';
 import AccountConfirm from './pages/AccountConfirm';
 import Profile from './pages/Profile';
 import ChangePassword from './pages/ChangePassword';
@@ -22,6 +23,7 @@ function App() {
         <Route path="/register" element={<RegisterUser />} />
         <Route path="/pretraga" element={<SearchFilter />} />
         <Route path="/edit-project/:id" element={<EditProject />} />
+        <Route path="/tasks/:projectId" element={<TaskManagement />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/recovery" element={<PasswordRecovery />} />

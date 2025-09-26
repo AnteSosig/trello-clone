@@ -460,7 +460,23 @@ int emailto(char email[], FILE* payload_file) {
 
 int adduser(User *user) {
 
+    // Ensure log file is open
+    if (!log) {
+        log = fopen("log.txt", "a");
+    }
+
     Repository *repo = New(log); 
+    
+    // Check if database connection was successful
+    if (!repo) {
+        printf("Error: Failed to connect to database during user registration\n");
+        if (log) {
+            fprintf(log, "Error: Database connection failed during user registration\n");
+            fflush(log);
+        }
+        return 3; // Return 3 to indicate database connection error
+    }
+    
     const char *db_name = "users";
     const char *collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
@@ -533,7 +549,7 @@ int adduser(User *user) {
             "From: trello clone\r\n"
             "Subject: Email Verification\r\n"
             "\r\n"
-            "Vas aktivacioni kod: http://localhost:3000/activate?link=%s\r\n", user->email, (const char*)activation_link);
+            "Vas aktivacioni kod: http://localhost:8080/activate?link=%s\r\n", user->email, (const char*)activation_link);
         fclose(payload_file);
         fprintf(repo->logger, "Written to the payload file.\n");
     }
@@ -800,8 +816,24 @@ int parse_credentials_from_json(const cJSON* json, char role[]) {
     char hashed_password[41];
     password_hash(password->valuestring, hashed_password);
 
+    // Ensure log file is open
+    if (!log) {
+        log = fopen("log.txt", "a");
+    }
+
     Repository* repo = New(log);
     printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    
+    // Check if database connection was successful
+    if (!repo) {
+        printf("Error: Failed to connect to database\n");
+        if (log) {
+            fprintf(log, "Error: Database connection failed during authentication\n");
+            fflush(log);
+        }
+        return 2; // Return 2 to indicate database connection error
+    }
+    
     const char* db_name = "users";
     const char* collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
@@ -1018,8 +1050,23 @@ int changepassword(const char* username_or_email, const char* new_password, cons
 
 int find_user_and_send_magic(const char* username_or_email) {
 
+    // Ensure log file is open
+    if (!log) {
+        log = fopen("log.txt", "a");
+    }
+
     Repository* repo = New(log);
     printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    
+    // Check if database connection was successful
+    if (!repo) {
+        printf("Error: Failed to connect to database\n");
+        if (log) {
+            fprintf(log, "Error: Database connection failed in find_user_and_send_magic\n");
+            fflush(log);
+        }
+        return 1;
+    }
     const char* db_name = "users";
     const char* collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
@@ -1275,8 +1322,23 @@ int check_magic_link(const char *link, char **username) {
 
 int cheeky(const char *username, char **role) {
     
+    // Ensure log file is open
+    if (!log) {
+        log = fopen("log.txt", "a");
+    }
+
     Repository* repo = New(log);
     printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    
+    // Check if database connection was successful
+    if (!repo) {
+        printf("Error: Failed to connect to database\n");
+        if (log) {
+            fprintf(log, "Error: Database connection failed in cheeky\n");
+            fflush(log);
+        }
+        return 1;
+    }
     const char* db_name = "users";
     const char* collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
@@ -1311,8 +1373,23 @@ int cheeky(const char *username, char **role) {
 
 int find_user_and_send_recovery(const char *email) {
     
+    // Ensure log file is open
+    if (!log) {
+        log = fopen("log.txt", "a");
+    }
+
     Repository* repo = New(log);
     printf("repo = %p, repo->client = %p\n", (void*)repo, (void*)(repo ? repo->client : NULL));
+    
+    // Check if database connection was successful
+    if (!repo) {
+        printf("Error: Failed to connect to database\n");
+        if (log) {
+            fprintf(log, "Error: Database connection failed in find_user_and_send_recovery\n");
+            fflush(log);
+        }
+        return 1;
+    }
     const char* db_name = "users";
     const char* collection_name = "users";
     repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);

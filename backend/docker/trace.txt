@@ -1,0 +1,36 @@
+== Info: Host localhost:8443 was resolved.
+== Info: IPv6: ::1
+== Info: IPv4: 127.0.0.1
+== Info:   Trying [::1]:8443...
+== Info: schannel: disabled automatic use of client certificate
+== Info: ALPN: curl offers http/1.1
+== Info: ALPN: server accepted http/1.1
+== Info: Connected to localhost (::1) port 8443
+== Info: using HTTP/1.x
+=> Send header, 154 bytes (0x9a)
+0000: POST /user/login HTTP/1.1
+001b: Host: localhost:8443
+0031: User-Agent: curl/8.14.1
+004a: Content-Type: application/json
+006a: Accept: application/json
+0084: Content-Length: 53
+0098: 
+=> Send data, 53 bytes (0x35)
+0000: '{username_or_email:Kristijan,password:Testuser123.}'
+== Info: upload completely sent off: 53 bytes
+<= Recv header, 36 bytes (0x24)
+0000: HTTP/1.1 500 Internal Server Error
+<= Recv header, 37 bytes (0x25)
+0000: Date: Fri, 26 Sep 2025 11:10:42 GMT
+<= Recv header, 32 bytes (0x20)
+0000: Access-Control-Allow-Origin: *
+<= Recv header, 70 bytes (0x46)
+0000: Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPT
+0040: IONS
+<= Recv header, 59 bytes (0x3b)
+0000: Access-Control-Allow-Headers: Content-Type, Authorization
+<= Recv header, 19 bytes (0x13)
+0000: Content-Length: 0
+<= Recv header, 2 bytes (0x2)
+0000: 
+== Info: Connection #0 to host localhost left intact
