@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
 import { encodeURLParam } from '../utils/security';
+import { getAuthHeader } from '../utils/cookies';
 
 const EditProject = () => {
   const { id } = useParams();
@@ -9,6 +10,7 @@ const EditProject = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState('');
   const [searchResults, setSearchResults] = useState({});
   const [isSearching, setIsSearching] = useState({});
 
@@ -19,7 +21,9 @@ const EditProject = () => {
         setIsSearching(prev => ({ ...prev, [index]: true }));
         try {
           const encodedSearchTerm = encodeURLParam(searchTerm);
-          const response = await fetch(`https://localhost:8443/user/finduser?name=${encodedSearchTerm}`);
+          const response = await fetch(`https://localhost:8443/user/finduser?name=${encodedSearchTerm}`, {
+            headers: getAuthHeader()
+          });
           const data = await response.json();
           setSearchResults(prev => ({ ...prev, [index]: data }));
         } catch (error) {
@@ -37,7 +41,9 @@ const EditProject = () => {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const response = await fetch(`https://localhost:8443/project/projects/${id}`);
+        const response = await fetch(`https://localhost:8443/project/projects/${id}`, {
+          headers: getAuthHeader()
+        });
         if (!response.ok) throw new Error('Failed to fetch project');
         const text = await response.text();
         const data = JSON.parse(text);
@@ -66,10 +72,15 @@ const EditProject = () => {
     try {
       console.log('Sending update request with members:', newMembers);
       
+      const oldMembers = project.members || [];
+      const addedMembers = newMembers.filter(member => member && !oldMembers.includes(member));
+      const removedMembers = oldMembers.filter(member => member && !newMembers.includes(member));
+      
       const response = await fetch(`https://localhost:8443/project/updateproject/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader()
         },
         body: JSON.stringify({
           members: newMembers
@@ -87,9 +98,27 @@ const EditProject = () => {
         members: newMembers,
         current_member_count: newMembers.length
       }));
+
+      // Show success message with details about what changed
+      let successMsg = 'Project members updated successfully!';
+      if (addedMembers.length > 0) {
+        successMsg += ` Added: ${addedMembers.join(', ')}.`;
+      }
+      if (removedMembers.length > 0) {
+        successMsg += ` Removed: ${removedMembers.join(', ')}.`;
+      }
+      successMsg += ' 📬 Notifications have been sent to affected members.';
+      
+      setSuccess(successMsg);
+      setError('');
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccess(''), 5000);
+      
     } catch (err) {
       console.error('Update error:', err);
       setError(err.message);
+      setSuccess('');
     }
   };
 
@@ -161,6 +190,20 @@ const EditProject = () => {
             ← Back
           </button>
         </div>
+
+        {/* Success Message */}
+        {success && (
+          <div className="mb-6 p-4 bg-green-500/20 border border-green-400/30 rounded-lg backdrop-blur-sm">
+            <div className="text-green-100 text-sm">{success}</div>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-400/30 rounded-lg backdrop-blur-sm">
+            <div className="text-red-100 text-sm">{error}</div>
+          </div>
+        )}
 
         <div className="space-y-6">
           <div className="text-white/90">

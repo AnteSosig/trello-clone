@@ -238,6 +238,8 @@ static enum MHD_Result handle_request(void *cls,
         snprintf(service_host, sizeof(service_host), "http://project-service");
     } else if (strcmp(service_name, "task") == 0) {
         snprintf(service_host, sizeof(service_host), "http://task-service");
+    } else if (strcmp(service_name, "notification") == 0) {
+        snprintf(service_host, sizeof(service_host), "http://notification-service");
     } else {
         snprintf(service_host, sizeof(service_host), "%s", TARGET_HOST);
     }

@@ -7,6 +7,7 @@ services:
             USER_PORT: ${USER_PORT}
             PROJECT_PORT: ${PROJECT_PORT}
             TASK_PORT: ${TASK_PORT}
+            NOTIFICATION_PORT: ${NOTIFICATION_PORT}
         ports:
             - "${GATEWAY_PORT}:${GATEWAY_PORT}"
 
@@ -27,8 +28,12 @@ services:
             PORT: ${PROJECT_PORT}
             HMAC_KEY: ${HMAC_KEY}
             DBURI: ${DBURI}
+            NOTIFICATION_HOST: notification-service
+            NOTIFICATION_PORT: ${NOTIFICATION_PORT}
         ports:
             - "${PROJECT_PORT}:${PROJECT_PORT}"
+        depends_on:
+            - notification-service
 
     task-service:
         build: ./task-service
@@ -39,6 +44,19 @@ services:
         ports:
             - "${TASK_PORT}:${TASK_PORT}"
 
+    notification-service:
+        build: ./notification-service
+        environment:
+            PORT: ${NOTIFICATION_PORT}
+            HMAC_KEY: ${HMAC_KEY}
+            CASSANDRA_HOSTS: ${CASSANDRA_HOSTS}
+            CASSANDRA_KEYSPACE: ${CASSANDRA_KEYSPACE}
+        ports:
+            - "${NOTIFICATION_PORT}:${NOTIFICATION_PORT}"
+        depends_on:
+            cassandra:
+                condition: service_healthy
+
     mongodb:
         image: mongo:7.0
         ports:
@@ -47,6 +65,26 @@ services:
             # - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
             - mongo_data:/data/db
 
+    cassandra:
+        image: cassandra:4.1
+        ports:
+            - "9042:9042"
+        environment:
+            CASSANDRA_CLUSTER_NAME: "trello_cluster"
+            CASSANDRA_DC: "datacenter1"
+            CASSANDRA_RACK: "rack1"
+            CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+            CASSANDRA_NUM_TOKENS: "256"
+        volumes:
+            - cassandra_data:/var/lib/cassandra
+        healthcheck:
+            test: ["CMD-SHELL", "cqlsh -e 'describe cluster'"]
+            interval: 40s
+            timeout: 15s
+            retries: 5
+
 volumes:
     mongo_data:
+        driver: local
+    cassandra_data:
         driver: local
