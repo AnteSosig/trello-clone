@@ -144,19 +144,23 @@ int create_keyspace_and_table(NotificationRepository* repo) {
     cass_future_free(future);
     cass_statement_free(statement);
 
-    // Create table
+    // Create table with composite partition key and clustering columns
+    // Partition key: (user_id, created_date) - buckets notifications by user and date
+    // Clustering columns: created_at (first), notification_id (second) - orders within partition
     const char* table_query = 
         "CREATE TABLE IF NOT EXISTS notifications ("
-        "notification_id UUID PRIMARY KEY,"
         "user_id TEXT,"
+        "created_date DATE,"
+        "created_at TIMESTAMP,"
+        "notification_id UUID,"
         "type INT,"
         "title TEXT,"
         "message TEXT,"
         "metadata TEXT,"
         "status INT,"
-        "created_at TIMESTAMP,"
-        "read_at TIMESTAMP"
-        ")";
+        "read_at TIMESTAMP,"
+        "PRIMARY KEY ((user_id, created_date), created_at, notification_id)"
+        ") WITH CLUSTERING ORDER BY (created_at DESC, notification_id ASC)";
 
     statement = cass_statement_new(table_query, 0);
     future = cass_session_execute(repo->session, statement);
@@ -167,27 +171,6 @@ int create_keyspace_and_table(NotificationRepository* repo) {
         cass_future_error_message(future, &message, &message_length);
         fprintf(repo->logger, "Error creating table: %.*s\n", (int)message_length, message);
         printf("Error creating table: %.*s\n", (int)message_length, message);
-        
-        cass_future_free(future);
-        cass_statement_free(statement);
-        return -1;
-    }
-
-    cass_future_free(future);
-    cass_statement_free(statement);
-
-    // Create index on user_id for efficient queries
-    const char* index_query = "CREATE INDEX IF NOT EXISTS ON notifications (user_id)";
-    
-    statement = cass_statement_new(index_query, 0);
-    future = cass_session_execute(repo->session, statement);
-
-    if (cass_future_error_code(future) != CASS_OK) {
-        const char* message;
-        size_t message_length;
-        cass_future_error_message(future, &message, &message_length);
-        fprintf(repo->logger, "Error creating index: %.*s\n", (int)message_length, message);
-        printf("Error creating index: %.*s\n", (int)message_length, message);
         
         cass_future_free(future);
         cass_statement_free(statement);
@@ -225,11 +208,15 @@ int add_notification(NotificationRepository* repo, Notification* notification) {
     
     strcpy(notification->notification_id, uuid_str);
     
+    // Calculate created_date from created_at (number of days since epoch)
+    // Cassandra DATE type is stored as days since epoch (1970-01-01)
+    cass_uint32_t created_date = (cass_uint32_t)(notification->created_at / 86400); // 86400 seconds per day
+    
     const char* query = 
-        "INSERT INTO notifications (notification_id, user_id, type, title, message, metadata, status, created_at, read_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        "INSERT INTO notifications (user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    CassStatement* statement = cass_statement_new(query, 9);
+    CassStatement* statement = cass_statement_new(query, 10);
     
     // Convert UUID string to CassUuid
     CassUuid cass_uuid;
@@ -240,19 +227,20 @@ int add_notification(NotificationRepository* repo, Notification* notification) {
         return -1;
     }
     
-    cass_statement_bind_uuid(statement, 0, cass_uuid);
-    cass_statement_bind_string(statement, 1, notification->user_id);
-    cass_statement_bind_int32(statement, 2, notification->type);
-    cass_statement_bind_string(statement, 3, notification->title);
-    cass_statement_bind_string(statement, 4, notification->message);
-    cass_statement_bind_string(statement, 5, notification->metadata);
-    cass_statement_bind_int32(statement, 6, notification->status);
-    cass_statement_bind_int64(statement, 7, notification->created_at * 1000); // Convert to milliseconds
+    cass_statement_bind_string(statement, 0, notification->user_id);
+    cass_statement_bind_uint32(statement, 1, created_date);
+    cass_statement_bind_int64(statement, 2, notification->created_at * 1000); // Convert to milliseconds
+    cass_statement_bind_uuid(statement, 3, cass_uuid);
+    cass_statement_bind_int32(statement, 4, notification->type);
+    cass_statement_bind_string(statement, 5, notification->title);
+    cass_statement_bind_string(statement, 6, notification->message);
+    cass_statement_bind_string(statement, 7, notification->metadata);
+    cass_statement_bind_int32(statement, 8, notification->status);
     
     if (notification->read_at > 0) {
-        cass_statement_bind_int64(statement, 8, notification->read_at * 1000);
+        cass_statement_bind_int64(statement, 9, notification->read_at * 1000);
     } else {
-        cass_statement_bind_null(statement, 8);
+        cass_statement_bind_null(statement, 9);
     }
 
     CassFuture* future = cass_session_execute(repo->session, statement);
@@ -291,12 +279,21 @@ char* get_notifications_by_user(NotificationRepository* repo, const char* user_i
         return NULL;
     }
     
-    const char* query = "SELECT * FROM notifications WHERE user_id = ?";
+    // Query notifications for the last 90 days
+    // Calculate date range in days since epoch
+    time_t now = time(NULL);
+    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t start_date = end_date - 90; // 90 days back
     
-    CassStatement* statement = cass_statement_new(query, 1);
+    const char* query = "SELECT * FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ?";
+    
+    CassStatement* statement = cass_statement_new(query, 3);
     cass_statement_bind_string(statement, 0, user_id);
+    cass_statement_bind_uint32(statement, 1, start_date);
+    cass_statement_bind_uint32(statement, 2, end_date);
 
-    printf("DEBUG: Executing Cassandra query for user: '%s' (length: %zu)\n", user_id, strlen(user_id));
+    printf("DEBUG: Executing Cassandra query for user: '%s' (length: %zu) from date %u to %u\n", 
+           user_id, strlen(user_id), start_date, end_date);
     CassFuture* future = cass_session_execute(repo->session, statement);
 
     if (cass_future_error_code(future) != CASS_OK) {
@@ -327,56 +324,60 @@ char* get_notifications_by_user(NotificationRepository* repo, const char* user_i
         const CassRow* row = cass_iterator_get_row(iterator);
         Notification notification = {0};
         
-        // Extract UUID and convert to string (column 0)
-        CassUuid uuid;
-        cass_value_get_uuid(cass_row_get_column(row, 0), &uuid);
-        cass_uuid_string(uuid, notification.notification_id);
+        // New column order: user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at
         
-        // created_at (column 1) - skip for now, we'll get it later
+        // user_id (column 0)
+        const char* user_id_val;
+        size_t user_id_len;
+        cass_value_get_string(cass_row_get_column(row, 0), &user_id_val, &user_id_len);
+        strncpy(notification.user_id, user_id_val, user_id_len);
+        notification.user_id[user_id_len] = '\0';
+        
+        // created_date (column 1) - skip, not stored in struct
+        
+        // created_at (column 2)
         cass_int64_t created_at_ms;
-        cass_value_get_int64(cass_row_get_column(row, 1), &created_at_ms);
+        cass_value_get_int64(cass_row_get_column(row, 2), &created_at_ms);
         notification.created_at = created_at_ms / 1000;
         
-        // message (column 2)
-        const char* message_val;
-        size_t message_len;
-        cass_value_get_string(cass_row_get_column(row, 2), &message_val, &message_len);
-        strncpy(notification.message, message_val, message_len);
-        notification.message[message_len] = '\0';
+        // notification_id (column 3)
+        CassUuid uuid;
+        cass_value_get_uuid(cass_row_get_column(row, 3), &uuid);
+        cass_uuid_string(uuid, notification.notification_id);
         
-        // metadata (column 3)
-        const char* metadata_val;
-        size_t metadata_len;
-        cass_value_get_string(cass_row_get_column(row, 3), &metadata_val, &metadata_len);
-        strncpy(notification.metadata, metadata_val, metadata_len);
-        notification.metadata[metadata_len] = '\0';
+        // type (column 4)
+        cass_value_get_int32(cass_row_get_column(row, 4), (cass_int32_t*)&notification.type);
         
-        // read_at (column 4)
-        if (!cass_value_is_null(cass_row_get_column(row, 4))) {
-            cass_int64_t read_at_ms;
-            cass_value_get_int64(cass_row_get_column(row, 4), &read_at_ms);
-            notification.read_at = read_at_ms / 1000;
-        }
-        
-        // status (column 5)
-        cass_value_get_int32(cass_row_get_column(row, 5), (cass_int32_t*)&notification.status);
-        
-        // title (column 6)
+        // title (column 5)
         const char* title_val;
         size_t title_len;
-        cass_value_get_string(cass_row_get_column(row, 6), &title_val, &title_len);
+        cass_value_get_string(cass_row_get_column(row, 5), &title_val, &title_len);
         strncpy(notification.title, title_val, title_len);
         notification.title[title_len] = '\0';
         
-        // type (column 7)
-        cass_value_get_int32(cass_row_get_column(row, 7), (cass_int32_t*)&notification.type);
+        // message (column 6)
+        const char* message_val;
+        size_t message_len;
+        cass_value_get_string(cass_row_get_column(row, 6), &message_val, &message_len);
+        strncpy(notification.message, message_val, message_len);
+        notification.message[message_len] = '\0';
         
-        // user_id (column 8)
-        const char* user_id_val;
-        size_t user_id_len;
-        cass_value_get_string(cass_row_get_column(row, 8), &user_id_val, &user_id_len);
-        strncpy(notification.user_id, user_id_val, user_id_len);
-        notification.user_id[user_id_len] = '\0';
+        // metadata (column 7)
+        const char* metadata_val;
+        size_t metadata_len;
+        cass_value_get_string(cass_row_get_column(row, 7), &metadata_val, &metadata_len);
+        strncpy(notification.metadata, metadata_val, metadata_len);
+        notification.metadata[metadata_len] = '\0';
+        
+        // status (column 8)
+        cass_value_get_int32(cass_row_get_column(row, 8), (cass_int32_t*)&notification.status);
+        
+        // read_at (column 9)
+        if (!cass_value_is_null(cass_row_get_column(row, 9))) {
+            cass_int64_t read_at_ms;
+            cass_value_get_int64(cass_row_get_column(row, 9), &read_at_ms);
+            notification.read_at = read_at_ms / 1000;
+        }
 
         cJSON* notification_json = notification_to_json(&notification);
         cJSON_AddItemToArray(json_array, notification_json);
@@ -399,10 +400,18 @@ char* get_notifications_by_user(NotificationRepository* repo, const char* user_i
 }
 
 char* get_unread_notifications_by_user(NotificationRepository* repo, const char* user_id) {
-    const char* query = "SELECT * FROM notifications WHERE user_id = ? AND status = 0";
+    // Query notifications for the last 90 days
+    // Calculate date range in days since epoch
+    time_t now = time(NULL);
+    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t start_date = end_date - 90; // 90 days back
     
-    CassStatement* statement = cass_statement_new(query, 1);
+    const char* query = "SELECT * FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ? AND status = 0 ALLOW FILTERING";
+    
+    CassStatement* statement = cass_statement_new(query, 3);
     cass_statement_bind_string(statement, 0, user_id);
+    cass_statement_bind_uint32(statement, 1, start_date);
+    cass_statement_bind_uint32(statement, 2, end_date);
 
     CassFuture* future = cass_session_execute(repo->session, statement);
 
@@ -426,56 +435,60 @@ char* get_unread_notifications_by_user(NotificationRepository* repo, const char*
         const CassRow* row = cass_iterator_get_row(iterator);
         Notification notification = {0};
         
-        // Extract UUID and convert to string (column 0)
-        CassUuid uuid;
-        cass_value_get_uuid(cass_row_get_column(row, 0), &uuid);
-        cass_uuid_string(uuid, notification.notification_id);
+        // New column order: user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at
         
-        // created_at (column 1)
+        // user_id (column 0)
+        const char* user_id_val;
+        size_t user_id_len;
+        cass_value_get_string(cass_row_get_column(row, 0), &user_id_val, &user_id_len);
+        strncpy(notification.user_id, user_id_val, user_id_len);
+        notification.user_id[user_id_len] = '\0';
+        
+        // created_date (column 1) - skip, not stored in struct
+        
+        // created_at (column 2)
         cass_int64_t created_at_ms;
-        cass_value_get_int64(cass_row_get_column(row, 1), &created_at_ms);
+        cass_value_get_int64(cass_row_get_column(row, 2), &created_at_ms);
         notification.created_at = created_at_ms / 1000;
         
-        // message (column 2)
-        const char* message_val;
-        size_t message_len;
-        cass_value_get_string(cass_row_get_column(row, 2), &message_val, &message_len);
-        strncpy(notification.message, message_val, message_len);
-        notification.message[message_len] = '\0';
+        // notification_id (column 3)
+        CassUuid uuid;
+        cass_value_get_uuid(cass_row_get_column(row, 3), &uuid);
+        cass_uuid_string(uuid, notification.notification_id);
         
-        // metadata (column 3)
-        const char* metadata_val;
-        size_t metadata_len;
-        cass_value_get_string(cass_row_get_column(row, 3), &metadata_val, &metadata_len);
-        strncpy(notification.metadata, metadata_val, metadata_len);
-        notification.metadata[metadata_len] = '\0';
+        // type (column 4)
+        cass_value_get_int32(cass_row_get_column(row, 4), (cass_int32_t*)&notification.type);
         
-        // read_at (column 4)
-        if (!cass_value_is_null(cass_row_get_column(row, 4))) {
-            cass_int64_t read_at_ms;
-            cass_value_get_int64(cass_row_get_column(row, 4), &read_at_ms);
-            notification.read_at = read_at_ms / 1000;
-        }
-        
-        // status (column 5)
-        cass_value_get_int32(cass_row_get_column(row, 5), (cass_int32_t*)&notification.status);
-        
-        // title (column 6)
+        // title (column 5)
         const char* title_val;
         size_t title_len;
-        cass_value_get_string(cass_row_get_column(row, 6), &title_val, &title_len);
+        cass_value_get_string(cass_row_get_column(row, 5), &title_val, &title_len);
         strncpy(notification.title, title_val, title_len);
         notification.title[title_len] = '\0';
         
-        // type (column 7)
-        cass_value_get_int32(cass_row_get_column(row, 7), (cass_int32_t*)&notification.type);
+        // message (column 6)
+        const char* message_val;
+        size_t message_len;
+        cass_value_get_string(cass_row_get_column(row, 6), &message_val, &message_len);
+        strncpy(notification.message, message_val, message_len);
+        notification.message[message_len] = '\0';
         
-        // user_id (column 8)
-        const char* user_id_val;
-        size_t user_id_len;
-        cass_value_get_string(cass_row_get_column(row, 8), &user_id_val, &user_id_len);
-        strncpy(notification.user_id, user_id_val, user_id_len);
-        notification.user_id[user_id_len] = '\0';
+        // metadata (column 7)
+        const char* metadata_val;
+        size_t metadata_len;
+        cass_value_get_string(cass_row_get_column(row, 7), &metadata_val, &metadata_len);
+        strncpy(notification.metadata, metadata_val, metadata_len);
+        notification.metadata[metadata_len] = '\0';
+        
+        // status (column 8)
+        cass_value_get_int32(cass_row_get_column(row, 8), (cass_int32_t*)&notification.status);
+        
+        // read_at (column 9)
+        if (!cass_value_is_null(cass_row_get_column(row, 9))) {
+            cass_int64_t read_at_ms;
+            cass_value_get_int64(cass_row_get_column(row, 9), &read_at_ms);
+            notification.read_at = read_at_ms / 1000;
+        }
 
         cJSON* notification_json = notification_to_json(&notification);
         cJSON_AddItemToArray(json_array, notification_json);
@@ -498,37 +511,98 @@ char* get_unread_notifications_by_user(NotificationRepository* repo, const char*
 }
 
 int mark_notification_as_read(NotificationRepository* repo, const char* notification_id) {
-    const char* query = "UPDATE notifications SET status = 1, read_at = ? WHERE notification_id = ?";
-    
-    CassStatement* statement = cass_statement_new(query, 2);
-    
+    // With the new primary key structure, we need to find the notification first to get all key components
+    // Query for the last 90 days to find the notification
     time_t now = time(NULL);
-    cass_statement_bind_int64(statement, 0, now * 1000); // Convert to milliseconds
+    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t start_date = end_date - 90; // 90 days back
     
     CassUuid uuid;
     if (cass_uuid_from_string(notification_id, &uuid) != CASS_OK) {
         fprintf(repo->logger, "Error: Invalid notification ID format\n");
-        cass_statement_free(statement);
         return -1;
     }
     
-    cass_statement_bind_uuid(statement, 1, uuid);
-
-    CassFuture* future = cass_session_execute(repo->session, statement);
-
-    if (cass_future_error_code(future) != CASS_OK) {
+    // First, find the notification to get the full primary key
+    const char* select_query = "SELECT user_id, created_date, created_at FROM notifications WHERE created_date >= ? AND created_date <= ? AND notification_id = ? ALLOW FILTERING";
+    
+    CassStatement* select_statement = cass_statement_new(select_query, 3);
+    cass_statement_bind_uint32(select_statement, 0, start_date);
+    cass_statement_bind_uint32(select_statement, 1, end_date);
+    cass_statement_bind_uuid(select_statement, 2, uuid);
+    
+    CassFuture* select_future = cass_session_execute(repo->session, select_statement);
+    
+    if (cass_future_error_code(select_future) != CASS_OK) {
         const char* message;
         size_t message_length;
-        cass_future_error_message(future, &message, &message_length);
+        cass_future_error_message(select_future, &message, &message_length);
+        fprintf(repo->logger, "Error finding notification: %.*s\n", (int)message_length, message);
+        
+        cass_future_free(select_future);
+        cass_statement_free(select_statement);
+        return -1;
+    }
+    
+    const CassResult* result = cass_future_get_result(select_future);
+    CassIterator* iterator = cass_iterator_from_result(result);
+    
+    if (!cass_iterator_next(iterator)) {
+        fprintf(repo->logger, "Error: Notification not found\n");
+        cass_iterator_free(iterator);
+        cass_result_free(result);
+        cass_future_free(select_future);
+        cass_statement_free(select_statement);
+        return -1;
+    }
+    
+    const CassRow* row = cass_iterator_get_row(iterator);
+    
+    // Extract primary key components
+    const char* user_id_val;
+    size_t user_id_len;
+    cass_value_get_string(cass_row_get_column(row, 0), &user_id_val, &user_id_len);
+    char user_id[256];
+    strncpy(user_id, user_id_val, user_id_len);
+    user_id[user_id_len] = '\0';
+    
+    cass_uint32_t created_date;
+    cass_value_get_uint32(cass_row_get_column(row, 1), &created_date);
+    
+    cass_int64_t created_at_ms;
+    cass_value_get_int64(cass_row_get_column(row, 2), &created_at_ms);
+    
+    cass_iterator_free(iterator);
+    cass_result_free(result);
+    cass_future_free(select_future);
+    cass_statement_free(select_statement);
+    
+    // Now update the notification with the full primary key
+    const char* update_query = "UPDATE notifications SET status = 1, read_at = ? WHERE user_id = ? AND created_date = ? AND created_at = ? AND notification_id = ?";
+    
+    CassStatement* update_statement = cass_statement_new(update_query, 5);
+    
+    cass_statement_bind_int64(update_statement, 0, now * 1000); // Convert to milliseconds
+    cass_statement_bind_string(update_statement, 1, user_id);
+    cass_statement_bind_uint32(update_statement, 2, created_date);
+    cass_statement_bind_int64(update_statement, 3, created_at_ms);
+    cass_statement_bind_uuid(update_statement, 4, uuid);
+
+    CassFuture* update_future = cass_session_execute(repo->session, update_statement);
+
+    if (cass_future_error_code(update_future) != CASS_OK) {
+        const char* message;
+        size_t message_length;
+        cass_future_error_message(update_future, &message, &message_length);
         fprintf(repo->logger, "Error marking notification as read: %.*s\n", (int)message_length, message);
         
-        cass_future_free(future);
-        cass_statement_free(statement);
+        cass_future_free(update_future);
+        cass_statement_free(update_statement);
         return -1;
     }
 
-    cass_future_free(future);
-    cass_statement_free(statement);
+    cass_future_free(update_future);
+    cass_statement_free(update_statement);
 
     printf("Notification %s marked as read successfully.\n", notification_id);
     return 0;
