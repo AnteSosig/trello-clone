@@ -121,6 +121,18 @@ int add_task(Task* task) {
     }
 
     printf("Task inserted successfully.\n");
+    
+    // Extract the generated _id and store it in task_id
+    bson_iter_t iter;
+    if (bson_iter_init_find(&iter, doc, "_id")) {
+        const bson_oid_t *oid = bson_iter_oid(&iter);
+        char oid_str[25];
+        bson_oid_to_string(oid, oid_str);
+        strncpy(task->task_id, oid_str, sizeof(task->task_id) - 1);
+        task->task_id[sizeof(task->task_id) - 1] = '\0';
+        printf("Task created with ID: %s\n", task->task_id);
+    }
+    
     bson_destroy(doc);
     Cleanup(repo);
     fclose(log);

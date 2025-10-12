@@ -21,6 +21,7 @@ typedef struct {
     int current_member_count;
     char creator_id[MAX_STRING_LENGTH];
     ProjectStatus status;  // 0 = active, 1 = completed
+    char project_id[25];  // MongoDB ObjectId string (24 chars + null terminator)
 } Project;
 
 int parse_project_from_json(const cJSON* json, Project* project);

@@ -209,8 +209,13 @@ int add_notification(NotificationRepository* repo, Notification* notification) {
     strcpy(notification->notification_id, uuid_str);
     
     // Calculate created_date from created_at (number of days since epoch)
-    // Cassandra DATE type is stored as days since epoch (1970-01-01)
-    cass_uint32_t created_date = (cass_uint32_t)(notification->created_at / 86400); // 86400 seconds per day
+    // Cassandra DATE type represents days since epoch as an unsigned 32-bit integer (epoch: 2^31)
+    // The date value is the number of days since 1970-01-01, offset by 2^31
+    time_t now = notification->created_at;
+    cass_uint32_t created_date = (cass_uint32_t)(now / 86400); // Days since epoch
+    
+    printf("DEBUG: Storing notification - created_at: %ld, created_date: %u\n", 
+           notification->created_at, created_date);
     
     const char* query = 
         "INSERT INTO notifications (user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at) "
@@ -228,7 +233,8 @@ int add_notification(NotificationRepository* repo, Notification* notification) {
     }
     
     cass_statement_bind_string(statement, 0, notification->user_id);
-    cass_statement_bind_uint32(statement, 1, created_date);
+    // Use cass_date_from_epoch to properly convert days to Cassandra DATE format
+    cass_statement_bind_uint32(statement, 1, (cass_uint32_t)2147483648 + created_date);
     cass_statement_bind_int64(statement, 2, notification->created_at * 1000); // Convert to milliseconds
     cass_statement_bind_uuid(statement, 3, cass_uuid);
     cass_statement_bind_int32(statement, 4, notification->type);
@@ -282,10 +288,15 @@ char* get_notifications_by_user(NotificationRepository* repo, const char* user_i
     // Query notifications for the last 90 days
     // Calculate date range in days since epoch
     time_t now = time(NULL);
-    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t days_since_epoch = (cass_uint32_t)(now / 86400);
+    // Cassandra DATE uses 2^31 as epoch for 1970-01-01
+    cass_uint32_t end_date = (cass_uint32_t)2147483648 + days_since_epoch;
     cass_uint32_t start_date = end_date - 90; // 90 days back
     
-    const char* query = "SELECT * FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ?";
+    printf("DEBUG: Querying with start_date: %u, end_date: %u (days_since_epoch: %u)\n",
+           start_date, end_date, days_since_epoch);
+    
+    const char* query = "SELECT user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ? ALLOW FILTERING";
     
     CassStatement* statement = cass_statement_new(query, 3);
     cass_statement_bind_string(statement, 0, user_id);
@@ -403,10 +414,12 @@ char* get_unread_notifications_by_user(NotificationRepository* repo, const char*
     // Query notifications for the last 90 days
     // Calculate date range in days since epoch
     time_t now = time(NULL);
-    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t days_since_epoch = (cass_uint32_t)(now / 86400);
+    // Cassandra DATE uses 2^31 as epoch for 1970-01-01
+    cass_uint32_t end_date = (cass_uint32_t)2147483648 + days_since_epoch;
     cass_uint32_t start_date = end_date - 90; // 90 days back
     
-    const char* query = "SELECT * FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ? AND status = 0 ALLOW FILTERING";
+    const char* query = "SELECT user_id, created_date, created_at, notification_id, type, title, message, metadata, status, read_at FROM notifications WHERE user_id = ? AND created_date >= ? AND created_date <= ? AND status = 0 ALLOW FILTERING";
     
     CassStatement* statement = cass_statement_new(query, 3);
     cass_statement_bind_string(statement, 0, user_id);
@@ -514,7 +527,9 @@ int mark_notification_as_read(NotificationRepository* repo, const char* notifica
     // With the new primary key structure, we need to find the notification first to get all key components
     // Query for the last 90 days to find the notification
     time_t now = time(NULL);
-    cass_uint32_t end_date = (cass_uint32_t)(now / 86400);
+    cass_uint32_t days_since_epoch = (cass_uint32_t)(now / 86400);
+    // Cassandra DATE uses 2^31 as epoch for 1970-01-01
+    cass_uint32_t end_date = (cass_uint32_t)2147483648 + days_since_epoch;
     cass_uint32_t start_date = end_date - 90; // 90 days back
     
     CassUuid uuid;
@@ -524,7 +539,7 @@ int mark_notification_as_read(NotificationRepository* repo, const char* notifica
     }
     
     // First, find the notification to get the full primary key
-    const char* select_query = "SELECT user_id, created_date, created_at FROM notifications WHERE created_date >= ? AND created_date <= ? AND notification_id = ? ALLOW FILTERING";
+    const char* select_query = "SELECT user_id, created_date, created_at, notification_id FROM notifications WHERE created_date >= ? AND created_date <= ? AND notification_id = ? ALLOW FILTERING";
     
     CassStatement* select_statement = cass_statement_new(select_query, 3);
     cass_statement_bind_uint32(select_statement, 0, start_date);

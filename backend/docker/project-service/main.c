@@ -149,6 +149,22 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 fprintf(stderr, "niger: %s\n", project.moderator);
 
                 if (addproject(&project) == 0) {
+                    // Send notifications to all project members
+                    printf("Sending project creation notifications to %d members\n", project.current_member_count);
+                    for (int i = 0; i < project.current_member_count; i++) {
+                        printf("Sending notification to member: %s\n", project.members[i]);
+                        int notification_result = send_project_created_notification(
+                            project.members[i], 
+                            project.project, 
+                            project.project_id
+                        );
+                        if (notification_result != 0) {
+                            printf("Failed to send notification to %s\n", project.members[i]);
+                        } else {
+                            printf("Successfully sent notification to %s\n", project.members[i]);
+                        }
+                    }
+                    
                     cJSON* response_json = cJSON_CreateObject();
                     cJSON_AddStringToObject(response_json, "moderator", project.moderator);
                     cJSON_AddStringToObject(response_json, "project", project.project);

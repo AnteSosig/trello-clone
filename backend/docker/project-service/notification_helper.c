@@ -76,8 +76,10 @@ int send_notification(const char* user_id, const char* type, const char* title,
     char url[256];
     snprintf(url, sizeof(url), "http://%s:%s/notifications", notification_host, notification_port);
     
-    printf("Sending notification to: %s\n", url);
-    printf("Payload: %s\n", json_string);
+    printf("=== PROJECT SERVICE: Sending notification ===\n");
+    printf("URL: %s\n", url);
+    printf("JSON Payload: %s\n", json_string);
+    printf("=== END PROJECT SERVICE NOTIFICATION ===\n");
     
     // Set CURL options
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -152,4 +154,16 @@ int send_member_removed_notification(const char* user_id, const char* project_na
     snprintf(metadata, sizeof(metadata), "{\"project_id\":\"%s\",\"project_name\":\"%s\"}", project_id, project_name);
     
     return send_notification(user_id, "PROJECT_MEMBER_REMOVED", title, message, metadata);
+}
+
+int send_project_created_notification(const char* user_id, const char* project_name, const char* project_id) {
+    char title[256];
+    char message[512];
+    char metadata[256];
+    
+    snprintf(title, sizeof(title), "Added to New Project");
+    snprintf(message, sizeof(message), "You have been added to the new project '%s'", project_name);
+    snprintf(metadata, sizeof(metadata), "{\"project_id\":\"%s\",\"project_name\":\"%s\"}", project_id, project_name);
+    
+    return send_notification(user_id, "PROJECT_CREATED", title, message, metadata);
 }

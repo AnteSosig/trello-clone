@@ -91,8 +91,10 @@ int send_notification(const char* user_id, const char* type, const char* title,
     char url[256];
     snprintf(url, sizeof(url), "http://%s:%s/notifications", notification_host, notification_port);
     
-    printf("Sending notification to: %s\n", url);
-    printf("Payload: %s\n", json_string);
+    printf("=== TASK SERVICE: Sending notification ===\n");
+    printf("URL: %s\n", url);
+    printf("JSON Payload: %s\n", json_string);
+    printf("=== END TASK SERVICE NOTIFICATION ===\n");
     
     // Set CURL options
     curl_easy_setopt(curl, CURLOPT_URL, url);

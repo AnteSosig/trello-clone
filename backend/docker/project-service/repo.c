@@ -127,16 +127,34 @@ int addproject(Project* project) {
     bson_free(json_str);
 
     bson_error_t error;
-    if (!mongoc_collection_insert_one(repo->collection, doc, NULL, NULL, &error)) {
+    bson_t reply;
+    if (!mongoc_collection_insert_one(repo->collection, doc, NULL, &reply, &error)) {
         fprintf(repo->logger, "Error: Insert failed: %s\n", error.message);
         printf("Error: Insert failed: %s\n", error.message);
+        bson_destroy(doc);
+        bson_destroy(&reply);
+        Cleanup(repo);
+        fclose(log);
+        return 1;
     }
     else {
         fprintf(repo->logger, "Document inserted successfully.\n");
         printf("Document inserted successfully.\n");
+        
+        // Extract the generated _id from the inserted document
+        bson_iter_t iter;
+        if (bson_iter_init_find(&iter, doc, "_id")) {
+            const bson_oid_t *oid = bson_iter_oid(&iter);
+            char oid_str[25];
+            bson_oid_to_string(oid, oid_str);
+            strncpy(project->project_id, oid_str, sizeof(project->project_id) - 1);
+            project->project_id[sizeof(project->project_id) - 1] = '\0';
+            printf("Project created with ID: %s\n", project->project_id);
+        }
     }
 
     bson_destroy(doc);
+    bson_destroy(&reply);
     Cleanup(repo);
     fclose(log);
     return 0;

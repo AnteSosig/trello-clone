@@ -106,6 +106,23 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         Task task;
         if (parse_task_from_json(json, &task) == 0) {
             if (add_task(&task) == 0) {
+                // Send notifications to all task members about being assigned
+                printf("Sending task assignment notifications to %d members\n", task.member_count);
+                for (int i = 0; i < task.member_count; i++) {
+                    printf("Sending notification to member: %s\n", task.members[i]);
+                    int notification_result = send_task_member_added_notification(
+                        task.members[i],
+                        task.name,
+                        task.task_id,
+                        task.project_id
+                    );
+                    if (notification_result != 0) {
+                        printf("Failed to send notification to %s\n", task.members[i]);
+                    } else {
+                        printf("Successfully sent notification to %s\n", task.members[i]);
+                    }
+                }
+                
                 const char* success_response = "{\"status\": \"success\"}";
                 struct MHD_Response* response = MHD_create_response_from_buffer(
                     strlen(success_response),

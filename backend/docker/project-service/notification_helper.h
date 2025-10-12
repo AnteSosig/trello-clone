@@ -13,6 +13,9 @@ int send_notification(const char* user_id, const char* type, const char* title,
 int send_member_added_notification(const char* user_id, const char* project_name, const char* project_id);
 int send_member_removed_notification(const char* user_id, const char* project_name, const char* project_id);
 
+// Helper function for project creation notification
+int send_project_created_notification(const char* user_id, const char* project_name, const char* project_id);
+
 #ifdef __cplusplus
 }
 #endif
