@@ -108,10 +108,43 @@ const Home = () => {
 
   const DetailModal = ({ card, onClose }) => {
     const navigate = useNavigate();
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const handleClose = () => {
       onClose();
       fetchProjects();
+    };
+
+    const handleDelete = async () => {
+      try {
+        setDeleting(true);
+        const response = await fetch(`https://localhost:8443/project/deleteproject/${projectId}`, {
+          method: 'DELETE',
+          headers: getAuthHeader()
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to delete project');
+        }
+
+        const result = await response.json();
+        alert('Project deleted successfully!');
+        handleClose();
+      } catch (err) {
+        console.error('Delete error:', err);
+        if (err.message.includes('unfinished tasks')) {
+          alert('Cannot delete project - it has unfinished tasks. Please complete or delete all tasks first.');
+        } else if (err.message.includes('403') || err.message.includes('Access denied')) {
+          alert('Access denied - only managers can delete projects');
+        } else {
+          alert('Failed to delete project: ' + err.message);
+        }
+      } finally {
+        setDeleting(false);
+        setShowDeleteConfirm(false);
+      }
     };
 
     if (!card) return null;
@@ -124,14 +157,25 @@ const Home = () => {
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-3xl font-bold text-white">{card.project}</h2>
             <div className="flex gap-4">
+              {userRole === 'MANAGER' && (
+                <button 
+                  onClick={() => {
+                    handleClose();
+                    navigate(`/edit-project/${projectId}`);
+                  }}
+                  className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                >
+                  Edit Members
+                </button>
+              )}
               <button 
                 onClick={() => {
                   handleClose();
-                  navigate(`/edit-project/${projectId}`);
+                  navigate(`/tasks/${projectId}`);
                 }}
-                className="text-white/80 hover:text-white px-4 py-2 bg-emerald-600/20 rounded-lg"
+                className="text-white/80 hover:text-white px-4 py-2 bg-blue-600/20 rounded-lg"
               >
-                Edit Members
+                {userRole === 'MANAGER' ? 'Manage Tasks' : 'View Tasks'}
               </button>
               <button 
                 onClick={handleClose}
@@ -172,6 +216,51 @@ const Home = () => {
               </ul>
             </div>
           </div>
+
+          {/* Delete Project Section - Bottom */}
+          {userRole === 'MANAGER' && (
+            <div className="mt-8 pt-6 border-t border-white/20">
+              <div className="flex justify-end">
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-6 py-3 bg-red-600/20 text-red-300 border border-red-400/30 rounded-lg hover:bg-red-600/30 transition-colors"
+                  >
+                    Delete Project
+                  </button>
+                ) : (
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-6 py-3 bg-gray-600/20 text-gray-300 border border-gray-400/30 rounded-lg hover:bg-gray-600/30 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleting ? 'Deleting...' : 'Confirm Delete'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {showDeleteConfirm && (
+                <div className="mt-4 p-4 bg-red-500/10 border border-red-400/20 rounded-lg">
+                  <p className="text-red-300 text-sm">
+                    ⚠️ <strong>Warning:</strong> This action cannot be undone. The project will be permanently deleted.
+                    {card.status !== 1 && (
+                      <span className="block mt-2">
+                        Note: Project can only be deleted if all tasks are completed.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

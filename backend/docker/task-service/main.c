@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <cjson/cJSON.h>
 #include "model.h"
 #include "repo.h"
 #include "jwt_middleware.h"
+#include "notification_helper.h"
 
 #define PORT 8082
 
@@ -24,7 +26,7 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
         MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
@@ -104,6 +106,23 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         Task task;
         if (parse_task_from_json(json, &task) == 0) {
             if (add_task(&task) == 0) {
+                // Send notifications to all task members about being assigned
+                printf("Sending task assignment notifications to %d members\n", task.member_count);
+                for (int i = 0; i < task.member_count; i++) {
+                    printf("Sending notification to member: %s\n", task.members[i]);
+                    int notification_result = send_task_member_added_notification(
+                        task.members[i],
+                        task.name,
+                        task.task_id,
+                        task.project_id
+                    );
+                    if (notification_result != 0) {
+                        printf("Failed to send notification to %s\n", task.members[i]);
+                    } else {
+                        printf("Successfully sent notification to %s\n", task.members[i]);
+                    }
+                }
+                
                 const char* success_response = "{\"status\": \"success\"}";
                 struct MHD_Response* response = MHD_create_response_from_buffer(
                     strlen(success_response),
@@ -298,7 +317,43 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
             return ret;
         }
 
+        // Get current status and task info before updating for notifications
+        TaskStatus old_status = get_task_status(task_id);
+        char task_name[256] = {0};
+        char project_id[256] = {0};
+        char current_members[50][100];
+        int current_member_count = 0;
+        
+        int task_info_result = get_task_info(task_id, task_name, project_id);
+        int members_result = get_current_task_members(task_id, current_members, &current_member_count);
+        
+        printf("Old status: %d, New status: %d\n", old_status, new_status);
+        printf("Task info result: %d, Members result: %d, Member count: %d\n", 
+               task_info_result, members_result, current_member_count);
+
         if (update_task_status(task_id, new_status) == 0) {
+            // Send notifications to all task members if we got the necessary info and status actually changed
+            if (task_info_result == 0 && members_result == 0 && old_status != new_status && old_status != -1) {
+                printf("Sending status change notifications to %d members\n", current_member_count);
+                
+                for (int i = 0; i < current_member_count; i++) {
+                    printf("Sending status change notification to: %s\n", current_members[i]);
+                    int notification_result = send_task_status_changed_notification_with_enum(
+                        current_members[i], task_name, task_id, project_id, old_status, new_status);
+                    if (notification_result != 0) {
+                        printf("Failed to send status change notification to %s\n", current_members[i]);
+                    }
+                }
+            } else {
+                if (old_status == new_status) {
+                    printf("Status unchanged, skipping notifications\n");
+                } else if (old_status == -1) {
+                    printf("Could not get old status, skipping notifications\n");
+                } else {
+                    printf("Failed to get task info or members for notifications\n");
+                }
+            }
+            
             const char* success_response = "{\"status\": \"success\"}";
             struct MHD_Response* response = MHD_create_response_from_buffer(
                 strlen(success_response),
@@ -392,16 +447,79 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
             return ret;
         }
 
+        // Get current task members and task info for notifications
+        char current_members[50][100];
+        int current_member_count = 0;
+        char task_name[256] = {0};
+        char project_id[256] = {0};
+        
+        int current_members_result = get_current_task_members(task_id, current_members, &current_member_count);
+        int task_info_result = get_task_info(task_id, task_name, project_id);
+        
+        printf("Current members count: %d, Task info result: %d\n", current_member_count, task_info_result);
+        for (int i = 0; i < current_member_count; i++) {
+            printf("Current member %d: %s\n", i, current_members[i]);
+        }
+
         int member_count = cJSON_GetArraySize(members_array);
         const char** members = malloc(member_count * sizeof(char*));
         for (int i = 0; i < member_count; i++) {
             cJSON* member = cJSON_GetArrayItem(members_array, i);
             if (cJSON_IsString(member)) {
                 members[i] = member->valuestring;
+                printf("New member %d: %s\n", i, members[i]);
             }
         }
 
         if (update_task_members(task_id, members, member_count) == 0) {
+            // Send notifications if we successfully got current members and task info
+            if (current_members_result == 0 && task_info_result == 0) {
+                printf("Processing member changes for notifications...\n");
+                
+                // Find added members
+                for (int i = 0; i < member_count; i++) {
+                    const char* new_member = members[i];
+                    bool found_in_current = false;
+                    
+                    for (int j = 0; j < current_member_count; j++) {
+                        if (strcmp(new_member, current_members[j]) == 0) {
+                            found_in_current = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found_in_current) {
+                        printf("Sending task member added notification to: %s\n", new_member);
+                        int notification_result = send_task_member_added_notification(new_member, task_name, task_id, project_id);
+                        if (notification_result != 0) {
+                            printf("Failed to send task member added notification to %s\n", new_member);
+                        }
+                    }
+                }
+                
+                // Find removed members
+                for (int i = 0; i < current_member_count; i++) {
+                    const char* current_member = current_members[i];
+                    bool found_in_new = false;
+                    
+                    for (int j = 0; j < member_count; j++) {
+                        if (strcmp(current_member, members[j]) == 0) {
+                            found_in_new = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found_in_new) {
+                        printf("Sending task member removed notification to: %s\n", current_member);
+                        int notification_result = send_task_member_removed_notification(current_member, task_name, task_id, project_id);
+                        if (notification_result != 0) {
+                            printf("Failed to send task member removed notification to %s\n", current_member);
+                        }
+                    }
+                }
+            } else {
+                printf("Failed to get current members or task info for notifications\n");
+            }
             const char* success_response = "{\"status\": \"success\"}";
             struct MHD_Response* response = MHD_create_response_from_buffer(
                 strlen(success_response),
@@ -519,6 +637,20 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         int result = add_member_to_task(task_id, member_id);
         
         if (result == 0) {
+            // Get task information for notification
+            char task_name[256] = {0};
+            char project_id[256] = {0};
+            
+            if (get_task_info(task_id, task_name, project_id) == 0) {
+                printf("Sending task member added notification to: %s\n", member_id);
+                int notification_result = send_task_member_added_notification(member_id, task_name, task_id, project_id);
+                if (notification_result != 0) {
+                    printf("Failed to send task member added notification to %s\n", member_id);
+                }
+            } else {
+                printf("Failed to get task information for notification\n");
+            }
+            
             const char* success_response = "{\"status\": \"success\", \"message\": \"Member added to task\"}";
             struct MHD_Response* response = MHD_create_response_from_buffer(
                 strlen(success_response),
@@ -644,9 +776,26 @@ static enum MHD_Result answer_to_connection(void* cls, struct MHD_Connection* co
         }
 
         const char* member_id = member_id_json->valuestring;
+        
+        // Get task information for notification before removing the member
+        char task_name[256] = {0};
+        char project_id[256] = {0};
+        int task_info_result = get_task_info(task_id, task_name, project_id);
+        
         int result = remove_member_from_task(task_id, member_id);
         
         if (result == 0) {
+            // Send notification if we successfully got task info
+            if (task_info_result == 0) {
+                printf("Sending task member removed notification to: %s\n", member_id);
+                int notification_result = send_task_member_removed_notification(member_id, task_name, task_id, project_id);
+                if (notification_result != 0) {
+                    printf("Failed to send task member removed notification to %s\n", member_id);
+                }
+            } else {
+                printf("Failed to get task information for notification\n");
+            }
+            
             const char* success_response = "{\"status\": \"success\", \"message\": \"Member removed from task\"}";
             struct MHD_Response* response = MHD_create_response_from_buffer(
                 strlen(success_response),

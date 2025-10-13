@@ -111,7 +111,7 @@ static enum MHD_Result handle_request(void *cls,
     if (strcmp(method, "OPTIONS") == 0) {
         struct MHD_Response* response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
         MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization");
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
@@ -132,6 +132,9 @@ static enum MHD_Result handle_request(void *cls,
         return MHD_YES;
     }
 
+    printf("=== PROCESSING REQUEST ===\n");
+    printf("URL: %s\n", url);
+    printf("Method: %s\n", method);
     printf("processing data.\n");
 
     struct ConnectionInfo* conn_info = (struct ConnectionInfo*)(*con_cls);
@@ -180,27 +183,37 @@ static enum MHD_Result handle_request(void *cls,
         service_name[i] = url[i + 1];
     }
     service_name[service_name_len] = '\0';
-    printf("pls %s\n", service_name);
+    printf("=== SERVICE ROUTING ===\n");
+    printf("Extracted service name: '%s'\n", service_name);
+    printf("Service name length: %d\n", service_name_len);
 
     struct ServiceAddressKeyValue **routing_table = (struct ServiceAddressKeyValue **)cls;
+    printf("=== ROUTING TABLE DEBUG ===\n");
+    printf("SERVICE_COUNT: %d\n", SERVICE_COUNT);
     for (int i = 0; i < SERVICE_COUNT; ++i) {
         if (routing_table[i]->service) {
-	        printf("kakam bukvalno: %sdzaja\n", routing_table[i]->service);
+	        printf("Service[%d]: '%s'\n", i, routing_table[i]->service);
         }
         if (routing_table[i]->address) {
-            printf("kakam bukvalno: %ddzaja\n", routing_table[i]->address);
+            printf("Port[%d]: %d\n", i, routing_table[i]->address);
         }
 	}
     int port = -1;
     char *service_first_char;
+    printf("=== SERVICE LOOKUP ===\n");
+    printf("Looking for service: '%s'\n", service_name);
     for (int i = 0; i < SERVICE_COUNT; ++i) {
+        printf("Comparing with routing_table[%d]->service: '%s'\n", i, routing_table[i]->service);
         if (strcmp(routing_table[i]->service, service_name) == 0) {
             port = routing_table[i]->address;
             service_first_char = &routing_table[i]->service[0];
+            printf("MATCH FOUND! Port: %d\n", port);
             break;
         }
     }
     if (port == -1) {
+        printf("=== SERVICE NOT FOUND ERROR ===\n");
+        printf("Failed to find service: '%s'\n", service_name);
         const char* not_found = "404 - Not Found";
         struct MHD_Response* response = MHD_create_response_from_buffer(strlen(not_found), (void*)not_found, MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
@@ -216,9 +229,26 @@ static enum MHD_Result handle_request(void *cls,
     endpoint[url_len - service_name_len] = '\0';
     printf("endpointovic %s\n", endpoint);
 
-    snprintf(target_url, sizeof(target_url), "%s-service:%d%s%s", service_first_char, port, endpoint, query);
-    printf("query tew zene: %s\n", query);
-    printf("nigger url: %s\n", target_url);
+    //snprintf(target_url, sizeof(target_url), "%s:%d%s%s", TARGET_HOST, port, endpoint, query);
+    // Use Docker service names instead of localhost
+    char service_host[256];
+    if (strcmp(service_name, "user") == 0) {
+        snprintf(service_host, sizeof(service_host), "http://user-service");
+    } else if (strcmp(service_name, "project") == 0) {
+        snprintf(service_host, sizeof(service_host), "http://project-service");
+    } else if (strcmp(service_name, "task") == 0) {
+        snprintf(service_host, sizeof(service_host), "http://task-service");
+    } else if (strcmp(service_name, "notification") == 0) {
+        snprintf(service_host, sizeof(service_host), "http://notification-service");
+    } else {
+        snprintf(service_host, sizeof(service_host), "%s", TARGET_HOST);
+    }
+    
+    snprintf(target_url, sizeof(target_url), "%s:%d%s%s", service_host, port, endpoint, query);
+    printf("=== CURL REQUEST SETUP ===\n");
+    printf("Query: %s\n", query);
+    printf("Target URL: %s\n", target_url);
+    printf("Endpoint: %s\n", endpoint);
     printf("zlaja kakimic\n");
     curl_easy_setopt(curl, CURLOPT_URL, target_url);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
@@ -242,7 +272,7 @@ static enum MHD_Result handle_request(void *cls,
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&resp);
 
-    if (strcmp(method, "POST") == 0) {
+    if (strcmp(method, "POST") == 0 || strcmp(method, "PATCH") == 0 || strcmp(method, "PUT") == 0) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, conn_info->json_data);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, conn_info->json_size);
         printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%s\n", conn_info->json_data);
@@ -252,10 +282,16 @@ static enum MHD_Result handle_request(void *cls,
 
     // Perform the request
     CURLcode res = curl_easy_perform(curl);
-    printf("beszarom a gatyaim\n");
+    printf("=== CURL RESPONSE ===\n");
+    printf("CURL result: %s (%d)\n", curl_easy_strerror(res), res);
 
     long http_code = 500;
-    if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        printf("HTTP Response Code: %ld\n", http_code);
+    } else {
+        printf("CURL ERROR: %s\n", curl_easy_strerror(res));
+    }
 
     // Build MHD response with the forwarded body
     struct MHD_Response *response = MHD_create_response_from_buffer(resp.body.size,
@@ -280,19 +316,45 @@ static enum MHD_Result handle_request(void *cls,
     curl_slist_free_all(resp.headers);
     curl_easy_cleanup(curl);
 
-    enum MHD_Result ret = MHD_queue_response(connection, http_code, response);
+    const char* existing_cors = MHD_get_response_header(response, "Access-Control-Allow-Origin");
+    if (!existing_cors) {
+        MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+        MHD_add_response_header(response, "Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
+        MHD_add_response_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+
+    enum MHD_Result ret = MHD_queue_response(connection, (unsigned int)http_code, response);
     MHD_destroy_response(response);
     return ret;
 }
 
+
 int main() {
+    // Force flush stdout immediately
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+    
+    // Also write to a debug file
+    FILE *debug = fopen("debug.log", "w");
+    if (debug) {
+        fprintf(debug, "=== API GATEWAY STARTING ===\n");
+        fflush(debug);
+    }
+    
+    printf("=== API GATEWAY STARTING ===\n");
+    fflush(stdout);
+    fprintf(stderr, "=== API GATEWAY STARTING (STDERR) ===\n");
+    fflush(stderr);
 
     const char *var_name = "SERVICES";
     char *services_env = getenv(var_name);
     if (!services_env) {
         fprintf(stderr, "Cannot find services\n");
+        fflush(stderr);
         return 1;
     }
+    printf("Found SERVICES environment: %s\n", services_env);
+    fflush(stdout);
 	char *services = malloc(strlen(services_env) + 1);
 	if (!services) {
 	    return -1;
@@ -370,25 +432,39 @@ int main() {
 	}
     SERVICE_COUNT = service_count;
 
+    printf("=== LOADING SSL CERTIFICATES ===\n");
     char *cert = load_file("cert.pem");
     char *key  = load_file("key.pem");
+    
+    printf("Certificate loaded: %s\n", cert ? "YES" : "NO");
+    printf("Key loaded: %s\n", key ? "YES" : "NO");
 
     if (!cert || !key) {
         fprintf(stderr, "Failed to load cert.pem or key.pem\n");
         return 2;
     }
+    printf("SSL certificates loaded successfully\n");
 
+    printf("=== INITIALIZING CURL ===\n");
     curl_global_init(CURL_GLOBAL_ALL);
+    printf("CURL initialized successfully\n");
 
+    printf("=== SETTING UP PORT ===\n");
     char* port_env = getenv("PORT");
     int gateway_port;
     if (!port_env) {
         fprintf(stderr, "No port given\n");
         gateway_port = PORT;
+        printf("Using default port: %d\n", gateway_port);
     } else {
         int result = sscanf(port_env, "%d", &gateway_port);
+        printf("Port from environment: %d\n", gateway_port);
     }
 
+    printf("=== STARTING MHD DAEMON ===\n");
+    printf("Gateway port: %d\n", gateway_port);
+    printf("Routing table prepared with %d services\n", SERVICE_COUNT);
+    
     struct MHD_Daemon *daemon = MHD_start_daemon(
         MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS,
         gateway_port,
@@ -400,6 +476,7 @@ int main() {
         MHD_OPTION_END);
     
     if (!daemon) {
+        printf("=== MHD DAEMON FAILED TO START ===\n");
         perror("MHD_start_daemon");
         curl_global_cleanup();
         free(cert);
@@ -412,6 +489,7 @@ int main() {
         }
         return 3;
     }
+    printf("=== MHD DAEMON STARTED SUCCESSFULLY ===\n");
 
     printf("Transparent API Gateway listening on port %d...\n", gateway_port);
     pause();

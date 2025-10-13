@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <cjson/cJSON.h>
+#include <mongoc/mongoc.h>
 #include "model.h"
 #include "repo.h"
 #include "algs.h"
@@ -151,7 +152,14 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         // If there's upload data, accumulate it
         if (*upload_data_size > 0) {
             // Reallocate memory to store incoming data
-            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            char* new_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            if (!new_data) {
+                // Handle realloc failure
+                free(conn_info->json_data);
+                free(conn_info);
+                return MHD_NO;
+            }
+            conn_info->json_data = new_data;
             memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
             conn_info->json_size += *upload_data_size;
             conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
@@ -177,7 +185,8 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             User user;
             int parse_result = parse_user_from_json(json, &user);
             if (parse_result == 0) {
-                if (adduser(&user) == 0) {
+                int add_result = adduser(&user);
+                if (add_result == 0) {
                     const char* response_str = "User data received";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(response_str),
                         (void*)response_str, MHD_RESPMEM_PERSISTENT);
@@ -185,6 +194,14 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                     int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
                     MHD_destroy_response(response);
                     printf("KKKKKKKKKKKKK.\n");
+                } else if (add_result == 3) {
+                    // Database connection error
+                    const char* error_response = "Database connection error. Please try again later.";
+                    struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                        (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                    MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                    int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+                    MHD_destroy_response(response);
                 } else {
                     const char* error_response = "User not added";
                     struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
@@ -408,7 +425,8 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
 
             cJSON* username_or_email = cJSON_GetObjectItem(json, "username_or_email");
             char role[10];
-            if (!parse_credentials_from_json(json, role)) {
+            int auth_result = parse_credentials_from_json(json, role);
+            if (auth_result == 0) {
                 printf("%s", role);
 
                 const char *var_name = "HMAC_KEY";
@@ -451,12 +469,22 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 /* Always free the output jwt string! */
                 l8w8jwt_free(jwt);
             }
-            else {
-                const char* error_response = "Invalid info";
+            else if (auth_result == 2) {
+                // Database connection error
+                const char* error_response = "Database connection error. Please try again later.";
                 struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
                     (void*)error_response, MHD_RESPMEM_PERSISTENT);
                 MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
-                int ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+                int ret = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+                MHD_destroy_response(response);
+            }
+            else {
+                // Invalid credentials (auth_result == 1)
+                const char* error_response = "Invalid credentials";
+                struct MHD_Response* response = MHD_create_response_from_buffer(strlen(error_response),
+                    (void*)error_response, MHD_RESPMEM_PERSISTENT);
+                MHD_add_response_header(response, "Access-Control-Allow-Origin", "*");
+                int ret = MHD_queue_response(connection, MHD_HTTP_UNAUTHORIZED, response);
                 MHD_destroy_response(response);
             }
 
@@ -544,7 +572,13 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         // If there's upload data, accumulate it
         if (*upload_data_size > 0) {
             // Reallocate memory to store incoming data
-            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            char* new_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            if (!new_data) {
+                if (conn_info->json_data) free(conn_info->json_data);
+                free(conn_info);
+                return MHD_NO;
+            }
+            conn_info->json_data = new_data;
             memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
             conn_info->json_size += *upload_data_size;
             conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
@@ -741,7 +775,13 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
         // If there's upload data, accumulate it
         if (*upload_data_size > 0) {
             // Reallocate memory to store incoming data
-            conn_info->json_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            char* new_data = realloc(conn_info->json_data, conn_info->json_size + *upload_data_size + 1);
+            if (!new_data) {
+                if (conn_info->json_data) free(conn_info->json_data);
+                free(conn_info);
+                return MHD_NO;
+            }
+            conn_info->json_data = new_data;
             memcpy(conn_info->json_data + conn_info->json_size, upload_data, *upload_data_size);
             conn_info->json_size += *upload_data_size;
             conn_info->json_data[conn_info->json_size] = '\0';  // Null-terminate
@@ -1139,6 +1179,17 @@ int main() {
         return 1;
     }
 
+    // Initialize MongoDB and logging before starting server
+    extern FILE* log;
+    log = fopen("log.txt", "w");
+    if (!log) {
+        fprintf(stderr, "Error: Could not open log file\n");
+        return 1;
+    }
+
+    // Initialize MongoDB
+    mongoc_init();
+
     struct MHD_Daemon* daemon;
 
     // Set the PORT from environment variable, fallback to default PORT 8080
@@ -1163,11 +1214,16 @@ int main() {
         printf("Password validator initialized successfully.\n");
     } 
 
-    repo();
-
     // Run indefinitely (could also add logic to handle graceful shutdowns)
     pause();
 
     MHD_stop_daemon(daemon);
+    
+    // Cleanup
+    mongoc_cleanup();
+    if (log) {
+        fclose(log);
+    }
+    
     return 0;
 }

@@ -16,6 +16,8 @@ int add_member_to_task(const char* task_id, const char* member_id);
 int remove_member_from_task(const char* task_id, const char* member_id);
 int get_task_project_id(const char* task_id, char* project_id_out);
 int get_task_status(const char* task_id);
+int get_task_info(const char* task_id, char* task_name_out, char* project_id_out);
+int get_current_task_members(const char* task_id, char members[][100], int* member_count);
 int repo(void);
 
 #endif

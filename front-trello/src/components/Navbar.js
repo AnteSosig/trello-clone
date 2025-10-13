@@ -1,17 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getCookie, isSessionValid, removeCookies } from '../utils/cookies';
+import NotificationPanel from './NotificationPanel';
+import { fetchNotifications } from '../utils/notifications';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     // Check if user is logged in by verifying token and session validity
     const token = getCookie('token');
     const sessionValid = isSessionValid();
     setIsLoggedIn(!!(token && sessionValid));
+    
+    // Load unread notification count if logged in
+    if (token && sessionValid) {
+      loadUnreadCount();
+    }
   }, []);
+
+  const loadUnreadCount = async () => {
+    try {
+      const notifications = await fetchNotifications(true); // Get only unread
+      setUnreadCount(Array.isArray(notifications) ? notifications.length : 0);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
 
   const handleLogout = () => {
     removeCookies();
@@ -62,6 +80,21 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-1">
             {isLoggedIn ? (
               <>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 text-gray-700 hover:text-emerald-600 rounded-lg hover:bg-gray-50 
+                              transition-all duration-200 relative"
+                  >
+                    🔔
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
                 <NavLink to="/profile">Moj Profil</NavLink>
                 <button
                   onClick={handleLogout}
@@ -139,6 +172,15 @@ const Navbar = () => {
           </div>
         </div>
       </div>
+      
+      {/* Notification Panel */}
+      <NotificationPanel 
+        isOpen={showNotifications} 
+        onClose={() => {
+          setShowNotifications(false);
+          loadUnreadCount(); // Refresh count when closing
+        }} 
+      />
     </nav>
   );
 };

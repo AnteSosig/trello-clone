@@ -121,6 +121,18 @@ int add_task(Task* task) {
     }
 
     printf("Task inserted successfully.\n");
+    
+    // Extract the generated _id and store it in task_id
+    bson_iter_t iter;
+    if (bson_iter_init_find(&iter, doc, "_id")) {
+        const bson_oid_t *oid = bson_iter_oid(&iter);
+        char oid_str[25];
+        bson_oid_to_string(oid, oid_str);
+        strncpy(task->task_id, oid_str, sizeof(task->task_id) - 1);
+        task->task_id[sizeof(task->task_id) - 1] = '\0';
+        printf("Task created with ID: %s\n", task->task_id);
+    }
+    
     bson_destroy(doc);
     Cleanup(repo);
     fclose(log);
@@ -1113,6 +1125,147 @@ int remove_member_from_task(const char* task_id, const char* member_id) {
     printf("=== Finished remove_member_from_task ===\n\n");
     
     return 0;
+}
+
+int get_task_info(const char* task_id, char* task_name_out, char* project_id_out) {
+    printf("\n=== Starting get_task_info ===\n");
+    printf("Getting task info for task ID: %s\n", task_id);
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1;
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1;
+    }
+
+    const char* db_name = "tasks";
+    const char* collection_name = "tasks";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // Create query to find the task by ID
+    bson_t* query = bson_new();
+    bson_oid_t oid;
+    bson_oid_init_from_string(&oid, task_id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    // Execute the query
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    
+    int result = 1; // Default to error
+    
+    if (mongoc_cursor_next(cursor, &doc)) {
+        bson_iter_t iter;
+        
+        // Get task name
+        if (bson_iter_init_find(&iter, doc, "name")) {
+            const char* name = bson_iter_utf8(&iter, NULL);
+            strcpy(task_name_out, name);
+            printf("Found task name: %s\n", name);
+        } else {
+            strcpy(task_name_out, "Unknown Task");
+            printf("Task name not found, using default\n");
+        }
+        
+        // Get project_id
+        if (bson_iter_init_find(&iter, doc, "project_id")) {
+            const char* proj_id = bson_iter_utf8(&iter, NULL);
+            strcpy(project_id_out, proj_id);
+            printf("Found project ID: %s\n", proj_id);
+            result = 0; // Success
+        } else {
+            printf("Project ID not found in task\n");
+            strcpy(project_id_out, "");
+        }
+    } else {
+        printf("Task not found with ID: %s\n", task_id);
+        strcpy(task_name_out, "Unknown Task");
+        strcpy(project_id_out, "");
+    }
+
+    mongoc_cursor_destroy(cursor);
+    bson_destroy(query);
+    Cleanup(repo);
+    fclose(log);
+    
+    printf("=== Finished get_task_info ===\n\n");
+    return result;
+}
+
+int get_current_task_members(const char* task_id, char members[][100], int* member_count) {
+    printf("\n=== Starting get_current_task_members ===\n");
+    printf("Getting current members for task ID: %s\n", task_id);
+    
+    FILE* log = fopen("log.txt", "w");
+    if (log == NULL) {
+        printf("Error opening log file!\n");
+        return 1;
+    }
+
+    Repository* repo = New(log);
+    if (repo == NULL) {
+        fclose(log);
+        return 1;
+    }
+
+    const char* db_name = "tasks";
+    const char* collection_name = "tasks";
+    repo->collection = mongoc_client_get_collection(repo->client, db_name, collection_name);
+
+    // Create query to find the task by ID
+    bson_t* query = bson_new();
+    bson_oid_t oid;
+    bson_oid_init_from_string(&oid, task_id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    // Execute the query
+    mongoc_cursor_t* cursor = mongoc_collection_find_with_opts(repo->collection, query, NULL, NULL);
+    const bson_t* doc;
+    
+    int result = 1; // Default to error
+    *member_count = 0;
+    
+    if (mongoc_cursor_next(cursor, &doc)) {
+        bson_iter_t iter;
+        
+        // Get members array
+        if (bson_iter_init_find(&iter, doc, "members") && bson_iter_type(&iter) == BSON_TYPE_ARRAY) {
+            bson_iter_t array_iter;
+            if (bson_iter_recurse(&iter, &array_iter)) {
+                int idx = 0;
+                while (bson_iter_next(&array_iter) && idx < 50) { // Max 50 members
+                    if (bson_iter_type(&array_iter) == BSON_TYPE_UTF8) {
+                        const char* member = bson_iter_utf8(&array_iter, NULL);
+                        strncpy(members[idx], member, 99);
+                        members[idx][99] = '\0';
+                        printf("Found current member %d: %s\n", idx, member);
+                        idx++;
+                    }
+                }
+                *member_count = idx;
+                result = 0; // Success
+            }
+        } else {
+            printf("No members array found in task\n");
+            result = 0; // Success with 0 members
+        }
+    } else {
+        printf("Task not found with ID: %s\n", task_id);
+    }
+
+    mongoc_cursor_destroy(cursor);
+    bson_destroy(query);
+    Cleanup(repo);
+    fclose(log);
+    
+    printf("Found %d current members\n", *member_count);
+    printf("=== Finished get_current_task_members ===\n\n");
+    return result;
 }
 
 int repo() {

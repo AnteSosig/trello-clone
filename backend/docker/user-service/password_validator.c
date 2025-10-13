@@ -62,9 +62,10 @@ int init_password_validator(void) {
     
     printf("Password validator initialized with %d blacklisted passwords.\n", blacklist_count);
 
-    for (int i = 0; i < blacklist_count; i++) {
-        fprintf(stderr, "Password %d: '%s'\n", i + 1, blacklisted_passwords[i]);
-    }
+   // Debug output removed for production
+// for (int i = 0; i < blacklist_count; i++) {
+//     fprintf(stderr, "Password %d: '%s'\n", i + 1, blacklisted_passwords[i]);
+// }
     
     return 0;
 }

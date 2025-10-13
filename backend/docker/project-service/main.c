@@ -9,6 +9,7 @@
 #include "algs.h"
 #include "decode.h"
 #include "jwt_middleware.h"
+#include "notification_helper.h"
 
 #define PORT 8081
 
@@ -148,6 +149,22 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
                 fprintf(stderr, "niger: %s\n", project.moderator);
 
                 if (addproject(&project) == 0) {
+                    // Send notifications to all project members
+                    printf("Sending project creation notifications to %d members\n", project.current_member_count);
+                    for (int i = 0; i < project.current_member_count; i++) {
+                        printf("Sending notification to member: %s\n", project.members[i]);
+                        int notification_result = send_project_created_notification(
+                            project.members[i], 
+                            project.project, 
+                            project.project_id
+                        );
+                        if (notification_result != 0) {
+                            printf("Failed to send notification to %s\n", project.members[i]);
+                        } else {
+                            printf("Successfully sent notification to %s\n", project.members[i]);
+                        }
+                    }
+                    
                     cJSON* response_json = cJSON_CreateObject();
                     cJSON_AddStringToObject(response_json, "moderator", project.moderator);
                     cJSON_AddStringToObject(response_json, "project", project.project);
@@ -567,12 +584,66 @@ int answer_to_connection(void* cls, struct MHD_Connection* connection,
             }
         }
 
+        // Find added members by comparing new vs current member lists
+        const char** added_members = malloc(new_member_count * sizeof(char*));
+        int added_count = 0;
+
+        for (int i = 0; i < new_member_count; i++) {
+            const char* new_username = new_member_strings[i];
+            bool found_in_current = false;
+            
+            // Check if this new member was in the current member list
+            for (int j = 0; j < current_member_count; j++) {
+                cJSON* current_member = cJSON_GetArrayItem(current_members, j);
+                if (!cJSON_IsString(current_member)) continue;
+                
+                if (strcmp(new_username, current_member->valuestring) == 0) {
+                    found_in_current = true;
+                    break;
+                }
+            }
+            
+            // If not found in current list, this member is being added
+            if (!found_in_current) {
+                added_members[added_count] = new_username;
+                added_count++;
+                printf("Member being added: %s\n", new_username);
+            }
+        }
+
         // Proceed with the update if validation passed
         int update_result = update_project_members(project_id, new_member_strings, new_member_count);
+
+        if (update_result == 0) {
+            // Get project name for notifications
+            cJSON* project_name_json = cJSON_GetObjectItem(current_project, "project");
+            const char* project_name = project_name_json && cJSON_IsString(project_name_json) 
+                                     ? project_name_json->valuestring 
+                                     : "Unknown Project";
+
+            // Send notifications for added members
+            for (int i = 0; i < added_count; i++) {
+                printf("Sending added notification to: %s\n", added_members[i]);
+                int notification_result = send_member_added_notification(added_members[i], project_name, project_id);
+                if (notification_result != 0) {
+                    printf("Failed to send added notification to %s\n", added_members[i]);
+                }
+            }
+
+            // Send notifications for removed members
+            for (int i = 0; i < removed_count; i++) {
+                printf("Sending removed notification to: %s\n", removed_members[i]);
+                int notification_result = send_member_removed_notification(removed_members[i], project_name, project_id);
+                if (notification_result != 0) {
+                    printf("Failed to send removed notification to %s\n", removed_members[i]);
+                }
+            }
+        }
         
         // Cleanup
         free(new_member_strings);
         free(removed_members);
+        free(added_members);
         cJSON_Delete(current_project);
         free(current_project_json);
         cJSON_Delete(json);
